@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Driver Portal - VRK Tours and Travels</title>
+    <link rel="stylesheet" href="/css/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">
+        <span class="brand-mark">VRK</span>
+        <span>
+          <strong>Driver Portal</strong>
+          <small>Assigned trips and live status updates</small>
+        </span>
+      </a>
+      <nav class="topnav" aria-label="Portals">
+        <a href="/">Customer</a>
+        <a href="/admin.html">Admin</a>
+        <a href="/driver.html">Driver</a>
+      </nav>
+    </header>
+
+    <main class="driver-shell">
+      <section id="driverLoginPanel" class="login-panel">
+        <div class="panel-heading">
+          <span class="eyebrow">Trip duty</span>
+          <h1>Driver login</h1>
+          <p>Drivers can view only trips assigned to their account.</p>
+        </div>
+        <form id="driverLoginForm" class="form-grid">
+          <label class="full">
+            Phone number
+            <input name="phone" inputmode="tel" required>
+          </label>
+          <label class="full">
+            Access code
+            <input name="accessCode" type="password" inputmode="numeric" required>
+          </label>
+          <button class="primary full" type="submit">Open trips</button>
+          <p class="form-message full" id="driverLoginMessage" role="status"></p>
+        </form>
+      </section>
+
+      <section id="driverApp" class="hidden">
+        <div class="dashboard-head">
+          <div>
+            <span class="eyebrow">Assigned work</span>
+            <h1 id="driverName">Driver trips</h1>
+          </div>
+          <button id="driverLogoutButton" class="ghost" type="button">Logout</button>
+        </div>
+        <div id="driverMetrics" class="metric-grid"></div>
+        <div id="driverTrips" class="trip-list"></div>
+      </section>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/driver.js"></script>
+  </body>
+</html>
