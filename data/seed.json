@@ -1,0 +1,25 @@
+{
+  "business": {
+    "name": "VRK Tours and Travels",
+    "tagline": "Car booking, one way trips, tour packages, and day packages",
+    "phone": "",
+    "email": "",
+    "address": "",
+    "gstNumber": "",
+    "upiId": "",
+    "bankDetails": "",
+    "paymentInstructions": "Owner will confirm the final payable amount before customer payment.",
+    "invoicePrefix": "VRK",
+    "terms": [
+      "Final fare is confirmed by owner/admin before payment.",
+      "Toll, parking, permit, extra kilometers, and night charges are applied as per owner confirmation.",
+      "Driver and vehicle details may be updated before trip start."
+    ],
+    "adminPin": "1234"
+  },
+  "cars": [],
+  "tourPackages": [],
+  "dayPackages": [],
+  "drivers": [],
+  "bookings": []
+}
