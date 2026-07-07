@@ -1,0 +1,20 @@
+{
+  "name": "vrk-tours-and-travels",
+  "version": "1.0.0",
+  "description": "Car booking, tour package, admin, and driver portal project for VRK Tours and Travels.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "travel",
+    "booking",
+    "admin",
+    "driver"
+  ],
+  "author": "VRK Tours and Travels",
+  "license": "MIT"
+}
