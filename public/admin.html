@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin - VRK Tours and Travels</title>
+    <link rel="stylesheet" href="/css/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">
+        <span class="brand-mark">VRK</span>
+        <span>
+          <strong>Admin Portal</strong>
+          <small>Manage cars, packages, bookings, and drivers</small>
+        </span>
+      </a>
+      <nav class="topnav" aria-label="Portals">
+        <a href="/">Customer</a>
+        <a href="/admin.html">Admin</a>
+        <a href="/driver.html">Driver</a>
+      </nav>
+    </header>
+
+    <main class="admin-shell">
+      <section id="loginPanel" class="login-panel">
+        <div class="panel-heading">
+            <span class="eyebrow">Secure desk</span>
+            <h1>Admin login</h1>
+          <p>Owner/admin controls vehicles, packages, final price, payment verification, and driver assignment.</p>
+        </div>
+        <form id="adminLoginForm" class="form-grid">
+          <label class="full">
+            Admin PIN
+            <input name="pin" type="password" inputmode="numeric" required>
+          </label>
+          <button class="primary full" type="submit">Open admin portal</button>
+          <p class="form-message full" id="adminLoginMessage" role="status"></p>
+        </form>
+      </section>
+
+      <section id="adminApp" class="hidden">
+        <div class="dashboard-head">
+          <div>
+            <span class="eyebrow">Control center</span>
+            <h1>Business operations</h1>
+          </div>
+          <button id="logoutButton" class="ghost" type="button">Logout</button>
+        </div>
+
+        <div class="metric-grid" id="metrics"></div>
+
+        <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+          <button class="active" data-section="bookings" type="button">Bookings</button>
+          <button data-section="cars" type="button">Cars</button>
+          <button data-section="tours" type="button">Tours</button>
+          <button data-section="days" type="button">One day</button>
+          <button data-section="drivers" type="button">Drivers</button>
+          <button data-section="settings" type="button">Settings</button>
+        </div>
+
+        <section id="bookingsSection" class="admin-section"></section>
+        <section id="carsSection" class="admin-section hidden"></section>
+        <section id="toursSection" class="admin-section hidden"></section>
+        <section id="daysSection" class="admin-section hidden"></section>
+        <section id="driversSection" class="admin-section hidden"></section>
+        <section id="settingsSection" class="admin-section hidden"></section>
+      </section>
+    </main>
+
+    <template id="bookingManageTemplate">
+      <form class="manage-booking-form form-grid compact">
+        <label>
+          Driver
+          <select name="assignedDriverId"></select>
+        </label>
+        <label>
+          Car
+          <select name="assignedCarId"></select>
+        </label>
+        <label>
+          Amount
+          <input name="amount" type="number" min="0">
+        </label>
+        <label>
+          Status
+          <select name="status">
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="assigned">Assigned</option>
+            <option value="driver_accepted">Driver accepted</option>
+            <option value="on_trip">On trip</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label class="full">
+          Admin notes
+          <textarea name="notes" rows="2"></textarea>
+        </label>
+        <button class="primary full" type="submit">Update booking</button>
+      </form>
+    </template>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/admin.js"></script>
+  </body>
+</html>
