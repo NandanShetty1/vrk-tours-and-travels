@@ -3,6 +3,8 @@
     data: null,
     tab: "cars",
     selected: null,
+    infoItem: null,
+    heroTimer: null,
     popupShown: false
   };
 
@@ -13,6 +15,15 @@
   const modalBookingForm = document.querySelector("#modalBookingForm");
   const bookingModal = document.querySelector("#bookingModal");
   const modalClose = document.querySelector("#modalClose");
+  const infoModal = document.querySelector("#infoModal");
+  const infoClose = document.querySelector("#infoClose");
+  const infoCloseSecondary = document.querySelector("#infoCloseSecondary");
+  const infoEyebrow = document.querySelector("#infoEyebrow");
+  const infoTitle = document.querySelector("#infoTitle");
+  const infoSubtitle = document.querySelector("#infoSubtitle");
+  const infoBody = document.querySelector("#infoBody");
+  const infoBook = document.querySelector("#infoBook");
+  const siteFooter = document.querySelector("#siteFooter");
   const trackForm = document.querySelector("#trackForm");
   const trackResult = document.querySelector("#trackResult");
   const bookingMessage = document.querySelector("#bookingMessage");
@@ -40,29 +51,34 @@
     return "day";
   }
 
+  function kindForItem(item) {
+    return (item && item.bookingType) || bookingTypeForTab();
+  }
+
   function titleForItem(item) {
     return item.name || item.title || "Custom travel enquiry";
   }
 
   function amountForItem(item) {
     if (!item) return 0;
-    return state.tab === "cars" || item.bookingType === "car" ? item.dayRate : item.price;
+    return kindForItem(item) === "car" ? item.dayRate : item.price;
   }
 
   function priceForItem(item) {
-    if ((state.tab === "cars" || item.bookingType === "car") && item.dayRate !== undefined) {
+    if (kindForItem(item) === "car" && item.dayRate !== undefined) {
       return `${VRK.money(item.dayRate)} per day / INR ${item.ratePerKm || 0} per km`;
     }
     return `${VRK.money(item.price)} starting price`;
   }
 
   function detailForItem(item) {
-    if (state.tab === "cars" || item.bookingType === "car") {
+    const kind = kindForItem(item);
+    if (kind === "car") {
       return `${item.category || "Car"} | ${item.seats || 4} seats | ${item.fuel || "Fuel"} | ${
         item.luggage || "Luggage"
       }`;
     }
-    if (state.tab === "tours" || item.bookingType === "tour") {
+    if (kind === "tour") {
       return `${item.packageType || "Tour"} | ${item.destination || "Destination"} | ${item.duration || "Duration"}`;
     }
     return `${item.packageType || "One day"} | ${item.place || "Place"} | ${item.hours || "Hours"}`;
@@ -70,6 +86,20 @@
 
   function tagsForItem(item) {
     return item.features || item.inclusions || item.highlights || [];
+  }
+
+  function includedForItem(item) {
+    if (!item) return [];
+    const kind = kindForItem(item);
+    if (kind === "car") return [...(item.features || []), ...(item.includedItems || [])];
+    if (kind === "tour") return item.inclusions || [];
+    return item.highlights || item.inclusions || [];
+  }
+
+  function excludedForItem(item) {
+    if (!item) return [];
+    if (kindForItem(item) === "car") return item.extraCharges || [];
+    return item.exclusions || [];
   }
 
   function styleForText(text) {
@@ -87,6 +117,10 @@
 
   function renderHero() {
     const banners = state.data.banners || [];
+    if (state.heroTimer) {
+      window.clearInterval(state.heroTimer);
+      state.heroTimer = null;
+    }
     if (!banners.length) {
       heroCarousel.innerHTML = `
         <article class="hero-slide" style="${styleForText("VRK Tours")}">
@@ -94,7 +128,7 @@
             <span class="eyebrow">VRK Tours and Travels</span>
             <h1>Cars, one way trips, tours, and day packages</h1>
             <p>Owner-confirmed pricing, driver assignment, and printable booking bill.</p>
-            <button class="primary" data-open-booking type="button">Book now</button>
+            <span class="hero-hint">Choose a service below to book</span>
           </div>
         </article>
       `;
@@ -104,7 +138,9 @@
     heroCarousel.innerHTML = banners
       .map(
         (banner) => `
-          <article class="hero-slide" style="${
+          <article class="hero-slide banner-click" data-banner-info="${VRK.escapeHtml(banner.id)}" tabindex="0" role="button" aria-label="Open details for ${VRK.escapeHtml(
+            banner.title
+          )}" style="${
             banner.image
               ? `background-image: linear-gradient(90deg, rgba(0,0,0,.72), rgba(0,0,0,.18)), url('${VRK.escapeHtml(
                   banner.image
@@ -112,17 +148,27 @@
               : styleForText(banner.prompt || banner.title)
           }">
             <div>
-              <span class="eyebrow">${VRK.escapeHtml(banner.prompt || "Featured offer")}</span>
+              <span class="eyebrow">${VRK.escapeHtml(banner.offerLabel || banner.prompt || "Featured offer")}</span>
               <h1>${VRK.escapeHtml(banner.title)}</h1>
               <p>${VRK.escapeHtml(banner.subtitle || "Book now and owner will confirm the best travel plan.")}</p>
-              <button class="primary" data-banner-book="${VRK.escapeHtml(banner.id)}" type="button">
-                ${VRK.escapeHtml(banner.ctaLabel || "Book now")}
-              </button>
+              <span class="hero-hint">${VRK.escapeHtml(banner.ctaLabel || "View details")}</span>
             </div>
           </article>
         `
       )
       .join("");
+    startHeroAutoplay();
+  }
+
+  function startHeroAutoplay() {
+    const slides = Array.from(heroCarousel.querySelectorAll(".hero-slide"));
+    if (slides.length < 2) return;
+    let index = 0;
+    state.heroTimer = window.setInterval(() => {
+      if (document.hidden) return;
+      index = (index + 1) % slides.length;
+      heroCarousel.scrollTo({ left: slides[index].offsetLeft - heroCarousel.offsetLeft, behavior: "smooth" });
+    }, 5000);
   }
 
   function card(item) {
@@ -145,11 +191,82 @@
             ${tagsForItem(item).slice(0, 4).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
           </div>
           <div class="card-actions">
-            <button class="ghost" data-select="${VRK.escapeHtml(item.id)}" type="button">Select</button>
+            <button class="ghost" data-details="${VRK.escapeHtml(item.id)}" type="button">Details</button>
             <button class="secondary" data-book="${VRK.escapeHtml(item.id)}" type="button">Book</button>
           </div>
         </div>
       </article>
+    `;
+  }
+
+  function openBannerInfo(banner) {
+    state.infoItem = null;
+    infoEyebrow.textContent = banner.offerLabel || banner.prompt || "Travel advertisement";
+    infoTitle.textContent = banner.title || "Travel offer";
+    infoSubtitle.textContent = banner.subtitle || "";
+    const related = banner.targetId ? allItems().find((item) => item.id === banner.targetId) : null;
+    infoBody.innerHTML = `
+      ${banner.details ? `<div class="info-block"><p>${VRK.escapeHtml(banner.details)}</p></div>` : ""}
+      ${banner.validUntil ? `<div class="info-price"><span>Valid until</span><strong>${VRK.dateLabel(banner.validUntil)}</strong></div>` : ""}
+      ${related ? `<div class="info-price"><span>Related service</span><strong>${VRK.escapeHtml(titleForItem(related))}</strong></div>` : ""}
+      ${itemList("Offer terms", banner.terms)}
+    `;
+    infoBook.classList.add("hidden");
+    infoModal.classList.remove("hidden");
+  }
+
+  function openServiceInfo(item) {
+    const service = { ...item, bookingType: item.bookingType || bookingTypeForTab() };
+    state.infoItem = service;
+    infoEyebrow.textContent = detailForItem(service);
+    infoTitle.textContent = titleForItem(service);
+    infoSubtitle.textContent = service.overview || "Owner will confirm exact fare, vehicle, driver, and payment before trip.";
+    infoBody.innerHTML = `
+      <div class="info-price">
+        <span>Starting price</span>
+        <strong>${priceForItem(service)}</strong>
+      </div>
+      ${itemList("Included", includedForItem(service))}
+      ${itemList("Extra charges / excluded", excludedForItem(service))}
+      ${itemList("Itinerary", service.itinerary)}
+      ${itemList("Terms and conditions", service.terms)}
+    `;
+    infoBook.classList.remove("hidden");
+    infoModal.classList.remove("hidden");
+  }
+
+  function closeInfoModal() {
+    infoModal.classList.add("hidden");
+    state.infoItem = null;
+  }
+
+  function renderFooter() {
+    if (!siteFooter) return;
+    const business = state.data.business || {};
+    siteFooter.innerHTML = `
+      <div class="footer-grid">
+        <div>
+          <span class="brand-mark">VRK</span>
+          <h2>${VRK.escapeHtml(business.name || "VRK Tours and Travels")}</h2>
+          <p>${VRK.escapeHtml(business.tagline || "Cars, tours, one way trips, and day packages.")}</p>
+        </div>
+        <div>
+          <h3>Contact</h3>
+          ${business.phone ? `<p><b>Phone</b> ${VRK.escapeHtml(business.phone)}</p>` : ""}
+          ${business.email ? `<p><b>Email</b> ${VRK.escapeHtml(business.email)}</p>` : ""}
+          ${business.address ? `<p><b>Address</b> ${VRK.escapeHtml(business.address)}</p>` : ""}
+        </div>
+        <div>
+          <h3>Bookings</h3>
+          <p>Owner confirms final fare before payment.</p>
+          <p>Booking ID and printable bill are generated after request.</p>
+        </div>
+        <div>
+          <h3>Payment</h3>
+          ${business.upiId ? `<p><b>UPI</b> ${VRK.escapeHtml(business.upiId)}</p>` : ""}
+          <p>${VRK.escapeHtml(business.gatewayNote || "Secure payment gateway can be connected with merchant keys.")}</p>
+        </div>
+      </div>
     `;
   }
 
@@ -236,6 +353,7 @@
     state.data = await VRK.request("/api/public-data");
     renderHero();
     renderGallery();
+    renderFooter();
     if (!state.selected) {
       const first = itemByTab()[0] || allItems()[0] || null;
       setSelected(first, false);
@@ -293,8 +411,9 @@
 
   document.body.addEventListener("click", (event) => {
     const selectButton = event.target.closest("[data-select]");
+    const detailsButton = event.target.closest("[data-details]");
     const bookButton = event.target.closest("[data-book]");
-    const bannerButton = event.target.closest("[data-banner-book]");
+    const bannerInfo = event.target.closest("[data-banner-info]");
     const openButton = event.target.closest("[data-open-booking]");
 
     if (selectButton || bookButton) {
@@ -303,13 +422,26 @@
       if (item) setSelected({ ...item, bookingType: bookingTypeForTab() }, Boolean(bookButton));
     }
 
-    if (bannerButton) {
-      const banner = (state.data.banners || []).find((item) => item.id === bannerButton.dataset.bannerBook);
-      const target = banner && banner.targetId ? allItems().find((item) => item.id === banner.targetId) : allItems()[0];
-      setSelected(target || null, true);
+    if (detailsButton) {
+      const item = itemByTab().find((entry) => entry.id === detailsButton.dataset.details);
+      if (item) openServiceInfo({ ...item, bookingType: bookingTypeForTab() });
+    }
+
+    if (bannerInfo) {
+      const banner = (state.data.banners || []).find((item) => item.id === bannerInfo.dataset.bannerInfo);
+      if (banner) openBannerInfo(banner);
     }
 
     if (openButton) openBookingModal();
+  });
+
+  heroCarousel.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const slide = event.target.closest("[data-banner-info]");
+    if (!slide) return;
+    event.preventDefault();
+    const banner = (state.data.banners || []).find((item) => item.id === slide.dataset.bannerInfo);
+    if (banner) openBannerInfo(banner);
   });
 
   modalClose.addEventListener("click", () => {
@@ -322,6 +454,18 @@
       sessionStorage.setItem("vrkPopupClosed", "yes");
       closeBookingModal();
     }
+  });
+
+  infoClose.addEventListener("click", closeInfoModal);
+  infoCloseSecondary.addEventListener("click", closeInfoModal);
+  infoModal.addEventListener("click", (event) => {
+    if (event.target === infoModal) closeInfoModal();
+  });
+  infoBook.addEventListener("click", () => {
+    if (!state.infoItem) return;
+    const item = state.infoItem;
+    closeInfoModal();
+    setSelected(item, true);
   });
 
   trackForm.addEventListener("submit", async (event) => {
