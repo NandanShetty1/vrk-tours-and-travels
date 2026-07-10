@@ -45,7 +45,8 @@
           ["image", "Image URL", "url"],
           ["features", "Features, one per line", "textarea"],
           ["includedItems", "Default inclusions, one per line", "textarea"],
-          ["extraCharges", "Extra charge notes, one per line", "textarea"]
+          ["extraCharges", "Extra charge notes, one per line", "textarea"],
+          ["terms", "Car terms and conditions, one per line", "textarea"]
         ]
       },
       tours: {
@@ -63,7 +64,8 @@
           ["overview", "Overview", "textarea"],
           ["inclusions", "Inclusions, one per line", "textarea"],
           ["exclusions", "Exclusions, one per line", "textarea"],
-          ["itinerary", "Itinerary, one per line", "textarea"]
+          ["itinerary", "Itinerary, one per line", "textarea"],
+          ["terms", "Tour terms and conditions, one per line", "textarea"]
         ]
       },
       days: {
@@ -80,7 +82,8 @@
           ["image", "Image URL", "url"],
           ["overview", "Overview", "textarea"],
           ["highlights", "Highlights, one per line", "textarea"],
-          ["exclusions", "Exclusions, one per line", "textarea"]
+          ["exclusions", "Exclusions, one per line", "textarea"],
+          ["terms", "One day trip terms and conditions, one per line", "textarea"]
         ]
       },
       drivers: {
@@ -105,8 +108,11 @@
           ["prompt", "Prompt for banner/ad idea", "textarea"],
           ["title", "Banner title", "text"],
           ["subtitle", "Banner subtitle", "textarea"],
+          ["details", "Banner details shown after customer clicks", "textarea"],
+          ["terms", "Banner offer terms, one per line", "textarea"],
+          ["validUntil", "Offer valid until", "date"],
+          ["offerLabel", "Offer label, example Weekend offer", "text"],
           ["image", "Banner image URL", "url"],
-          ["ctaLabel", "Button label", "text"],
           ["targetType", "Target type: car, tour, day, or blank", "text"],
           ["targetId", "Target service/package ID", "text"],
           ["sortOrder", "Sort order", "number"]
