@@ -5,6 +5,7 @@
     selected: null,
     infoItem: null,
     heroTimer: null,
+    customerProfile: null,
     popupShown: false
   };
 
@@ -13,6 +14,11 @@
   const galleryGrid = document.querySelector("#galleryGrid");
   const bookingForm = document.querySelector("#bookingForm");
   const modalBookingForm = document.querySelector("#modalBookingForm");
+  const customerLoginForm = document.querySelector("#customerLoginForm");
+  const customerLoginMessage = document.querySelector("#customerLoginMessage");
+  const customerAccountStatus = document.querySelector("#customerAccountStatus");
+  const customerAccountSummary = document.querySelector("#customerAccountSummary");
+  const providerLoginRow = document.querySelector(".provider-login-row");
   const bookingModal = document.querySelector("#bookingModal");
   const modalClose = document.querySelector("#modalClose");
   const infoModal = document.querySelector("#infoModal");
@@ -28,6 +34,68 @@
   const trackResult = document.querySelector("#trackResult");
   const bookingMessage = document.querySelector("#bookingMessage");
   const tabs = Array.from(document.querySelectorAll("[data-tab]"));
+
+  function loadCustomerProfile() {
+    try {
+      return JSON.parse(sessionStorage.getItem("vrkCustomerProfile") || "null");
+    } catch {
+      return null;
+    }
+  }
+
+  function saveCustomerProfile(profile) {
+    state.customerProfile = profile;
+    sessionStorage.setItem("vrkCustomerProfile", JSON.stringify(profile));
+    renderCustomerAccount();
+    applyCustomerProfile();
+  }
+
+  function clearCustomerProfile() {
+    const previous = state.customerProfile;
+    state.customerProfile = null;
+    sessionStorage.removeItem("vrkCustomerProfile");
+    renderCustomerAccount();
+    if (previous && customerLoginForm.elements) {
+      customerLoginForm.elements.customerName.value = previous.customerName || "";
+      customerLoginForm.elements.phone.value = previous.phone || "";
+      customerLoginForm.elements.email.value = previous.email || "";
+    }
+  }
+
+  function applyCustomerProfile() {
+    if (!state.customerProfile) return;
+    [bookingForm, modalBookingForm].forEach((form) => {
+      if (!form || !form.elements) return;
+      ["customerName", "phone", "email"].forEach((field) => {
+        if (form.elements[field] && state.customerProfile[field]) {
+          form.elements[field].value = state.customerProfile[field];
+        }
+      });
+    });
+  }
+
+  function renderCustomerAccount() {
+    const profile = state.customerProfile;
+    if (!profile) {
+      customerAccountStatus.textContent = "Use mobile number or email so your booking form is filled correctly.";
+      customerLoginForm.classList.remove("hidden");
+      providerLoginRow.classList.remove("hidden");
+      customerAccountSummary.classList.add("hidden");
+      customerAccountSummary.innerHTML = "";
+      return;
+    }
+    customerAccountStatus.textContent = "Signed in for this browser session.";
+    customerLoginForm.classList.add("hidden");
+    providerLoginRow.classList.add("hidden");
+    customerAccountSummary.classList.remove("hidden");
+    customerAccountSummary.innerHTML = `
+      <div>
+        <strong>${VRK.escapeHtml(profile.customerName)}</strong>
+        <small>${VRK.escapeHtml(profile.phone)}${profile.email ? ` | ${VRK.escapeHtml(profile.email)}` : ""}</small>
+      </div>
+      <button class="ghost" data-customer-logout type="button">Change</button>
+    `;
+  }
 
   function itemByTab() {
     if (!state.data) return [];
@@ -362,6 +430,7 @@
       updateFormSelection(bookingForm);
       updateFormSelection(modalBookingForm);
     }
+    applyCustomerProfile();
     maybeShowPopup();
   }
 
@@ -409,12 +478,30 @@
     });
   });
 
+  customerLoginForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = VRK.formToObject(customerLoginForm);
+    const profile = {
+      customerName: String(payload.customerName || "").trim(),
+      phone: String(payload.phone || "").trim(),
+      email: String(payload.email || "").trim()
+    };
+    if (!profile.customerName || !profile.phone) {
+      VRK.setMessage(customerLoginMessage, "Enter customer name and mobile number.", "danger");
+      return;
+    }
+    saveCustomerProfile(profile);
+    VRK.setMessage(customerLoginMessage, "", "");
+  });
+
   document.body.addEventListener("click", (event) => {
     const selectButton = event.target.closest("[data-select]");
     const detailsButton = event.target.closest("[data-details]");
     const bookButton = event.target.closest("[data-book]");
     const bannerInfo = event.target.closest("[data-banner-info]");
     const openButton = event.target.closest("[data-open-booking]");
+    const providerButton = event.target.closest("[data-auth-provider]");
+    const customerLogout = event.target.closest("[data-customer-logout]");
 
     if (selectButton || bookButton) {
       const id = (selectButton || bookButton).dataset.select || (selectButton || bookButton).dataset.book;
@@ -433,6 +520,16 @@
     }
 
     if (openButton) openBookingModal();
+
+    if (providerButton) {
+      VRK.setMessage(
+        customerLoginMessage,
+        `${providerButton.dataset.authProvider} sign in needs production OAuth keys before enabling.`,
+        "active"
+      );
+    }
+
+    if (customerLogout) clearCustomerProfile();
   });
 
   heroCarousel.addEventListener("keydown", (event) => {
@@ -620,6 +717,8 @@
 
   bindBookingForm(bookingForm, bookingMessage);
   bindBookingForm(modalBookingForm);
+  state.customerProfile = loadCustomerProfile();
+  renderCustomerAccount();
   VRK.watchLiveChanges(load);
   load().catch((error) => {
     catalog.innerHTML = `<div class="empty-state">${VRK.escapeHtml(error.message)}</div>`;
