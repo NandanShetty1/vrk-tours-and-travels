@@ -9,6 +9,7 @@ const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : pat
 const DATA_FILE = path.join(DATA_DIR, "store.json");
 const DEFAULT_PORTS = [5173, 5174, 5175, 5176, 5177];
 const HOST = process.env.HOST || (process.env.PORT ? "0.0.0.0" : "127.0.0.1");
+const USE_POSTGRES = Boolean(process.env.DATABASE_URL);
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -24,6 +25,7 @@ const MIME_TYPES = {
 
 const sseClients = new Set();
 let writeQueue = Promise.resolve();
+let pgPool;
 
 function now() {
   return new Date().toISOString();
@@ -31,6 +33,16 @@ function now() {
 
 function id(prefix) {
   return `${prefix}_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function bookingId(store) {
+  const prefix = String((store.business && store.business.invoicePrefix) || "VRK")
+    .replace(/[^a-z0-9]/gi, "")
+    .toUpperCase()
+    .slice(0, 6) || "VRK";
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const code = crypto.randomBytes(3).toString("hex").toUpperCase();
+  return `${prefix}-${stamp}-${code}`;
 }
 
 function sendJson(res, status, payload) {
@@ -61,6 +73,27 @@ async function readBody(req) {
 }
 
 async function ensureStore() {
+  if (USE_POSTGRES) {
+    const pool = await getPostgresPool();
+    const seed = await fs.readFile(path.join(ROOT, "data", "seed.json"), "utf8");
+    await pool.query(`
+      create table if not exists app_store (
+        id text primary key,
+        data jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await pool.query(
+      `
+        insert into app_store (id, data)
+        values ('main', $1::jsonb)
+        on conflict (id) do nothing
+      `,
+      [seed]
+    );
+    return;
+  }
+
   await fs.mkdir(DATA_DIR, { recursive: true });
   try {
     await fs.access(DATA_FILE);
@@ -70,15 +103,47 @@ async function ensureStore() {
   }
 }
 
+async function getPostgresPool() {
+  if (pgPool) return pgPool;
+  const { Pool } = require("pg");
+  pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
+  });
+  return pgPool;
+}
+
 async function loadStore() {
   await ensureStore();
+  if (USE_POSTGRES) {
+    const pool = await getPostgresPool();
+    const result = await pool.query("select data from app_store where id = 'main'");
+    if (!result.rows.length) {
+      const seed = await fs.readFile(path.join(ROOT, "data", "seed.json"), "utf8");
+      return normalizeStore(JSON.parse(seed));
+    }
+    return normalizeStore(result.rows[0].data);
+  }
+
   const raw = await fs.readFile(DATA_FILE, "utf8");
-  return JSON.parse(raw);
+  return normalizeStore(JSON.parse(raw));
 }
 
 async function saveStore(store) {
   writeQueue = writeQueue.then(async () => {
-    await fs.writeFile(DATA_FILE, JSON.stringify(store, null, 2), "utf8");
+    if (USE_POSTGRES) {
+      const pool = await getPostgresPool();
+      await pool.query(
+        `
+          update app_store
+          set data = $1::jsonb, updated_at = now()
+          where id = 'main'
+        `,
+        [JSON.stringify(store)]
+      );
+    } else {
+      await fs.writeFile(DATA_FILE, JSON.stringify(store, null, 2), "utf8");
+    }
   });
   await writeQueue;
   broadcast("change", { at: now() });
@@ -96,23 +161,51 @@ function publicBusiness(business) {
   return safeBusiness;
 }
 
+function normalizeStore(store) {
+  store.business = {
+    qrImage: "",
+    gatewayNote: "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
+    ...store.business
+  };
+  store.banners = Array.isArray(store.banners) ? store.banners : [];
+  store.gallery = Array.isArray(store.gallery) ? store.gallery : [];
+  store.popupSettings = {
+    enabled: false,
+    title: "Plan your next trip with VRK",
+    message: "Send a booking request and owner will confirm the final fare.",
+    buttonLabel: "Book now",
+    showOnEveryVisit: false,
+    image: "",
+    ...(store.popupSettings || {})
+  };
+  return store;
+}
+
 function publicData(store) {
+  normalizeStore(store);
   return {
     business: publicBusiness(store.business),
     cars: store.cars.filter((item) => item.active),
     tourPackages: store.tourPackages.filter((item) => item.active),
-    dayPackages: store.dayPackages.filter((item) => item.active)
+    dayPackages: store.dayPackages.filter((item) => item.active),
+    banners: store.banners.filter((item) => item.active).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0)),
+    gallery: store.gallery.filter((item) => item.active).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0)),
+    popupSettings: store.popupSettings
   };
 }
 
 function adminData(store) {
+  normalizeStore(store);
   return {
     business: store.business,
     cars: store.cars,
     tourPackages: store.tourPackages,
     dayPackages: store.dayPackages,
     drivers: store.drivers,
-    bookings: store.bookings
+    bookings: store.bookings,
+    banners: store.banners,
+    gallery: store.gallery,
+    popupSettings: store.popupSettings
   };
 }
 
@@ -221,7 +314,7 @@ function createBooking(store, payload) {
   const item = selectedItem(store, bookingType, payload.packageId || "");
 
   const booking = {
-    id: id("BK"),
+    id: bookingId(store),
     bookingType,
     packageId: payload.packageId || "",
     packageTitle: payload.packageTitle || (item && (item.name || item.title)) || "Custom booking",
@@ -344,8 +437,10 @@ async function handleApi(req, res) {
       address: String(body.address || "").trim(),
       gstNumber: String(body.gstNumber || "").trim(),
       upiId: String(body.upiId || "").trim(),
+      qrImage: String(body.qrImage || "").trim(),
       bankDetails: String(body.bankDetails || "").trim(),
       paymentInstructions: String(body.paymentInstructions || "").trim(),
+      gatewayNote: String(body.gatewayNote || store.business.gatewayNote || "").trim(),
       invoicePrefix: String(body.invoicePrefix || store.business.invoicePrefix || "VRK").trim(),
       terms: normalizeArrayText(body.terms)
     };
@@ -511,7 +606,77 @@ async function handleApi(req, res) {
     return;
   }
 
-  const archiveMatch = url.pathname.match(/^\/api\/admin\/(cars|tourPackages|dayPackages|drivers)\/([^/]+)\/archive$/);
+  if (req.method === "POST" && url.pathname === "/api/admin/banners") {
+    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    normalizeStore(store);
+    const body = await readBody(req);
+    const prompt = String(body.prompt || "").trim();
+    const title = String(body.title || (prompt ? `Explore ${prompt}` : "")).trim();
+    requireFields({ title }, ["title"]);
+    const item = upsertById(store.banners, {
+      id: body.id || id("BAN"),
+      title,
+      subtitle: String(body.subtitle || (prompt ? "Owner curated travel offer from VRK Tours and Travels" : "")).trim(),
+      prompt,
+      image: String(body.image || "").trim(),
+      ctaLabel: String(body.ctaLabel || "Book this trip").trim(),
+      targetType: String(body.targetType || "").trim(),
+      targetId: String(body.targetId || "").trim(),
+      sortOrder: Number(body.sortOrder || 0),
+      active: body.active !== false,
+      createdAt: body.createdAt || now(),
+      updatedAt: now()
+    });
+    await saveStore(store);
+    sendJson(res, 200, { item });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/gallery") {
+    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    normalizeStore(store);
+    const body = await readBody(req);
+    requireFields(body, ["title", "mediaUrl"]);
+    const item = upsertById(store.gallery, {
+      id: body.id || id("GAL"),
+      title: String(body.title).trim(),
+      caption: String(body.caption || "").trim(),
+      mediaType: String(body.mediaType || "image").trim(),
+      mediaUrl: String(body.mediaUrl || "").trim(),
+      thumbnail: String(body.thumbnail || "").trim(),
+      tripDate: String(body.tripDate || "").trim(),
+      tags: normalizeArrayText(body.tags),
+      featured: body.featured === true || body.featured === "on",
+      sortOrder: Number(body.sortOrder || 0),
+      active: body.active !== false,
+      createdAt: body.createdAt || now(),
+      updatedAt: now()
+    });
+    await saveStore(store);
+    sendJson(res, 200, { item });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/popup") {
+    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    normalizeStore(store);
+    const body = await readBody(req);
+    store.popupSettings = {
+      enabled: body.enabled === true || body.enabled === "on",
+      title: String(body.title || "").trim(),
+      message: String(body.message || "").trim(),
+      buttonLabel: String(body.buttonLabel || "Book now").trim(),
+      showOnEveryVisit: body.showOnEveryVisit === true || body.showOnEveryVisit === "on",
+      image: String(body.image || "").trim()
+    };
+    await saveStore(store);
+    sendJson(res, 200, { popupSettings: store.popupSettings });
+    return;
+  }
+
+  const archiveMatch = url.pathname.match(
+    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/archive$/
+  );
   if (req.method === "POST" && archiveMatch) {
     if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
     const [, collectionName, itemId] = archiveMatch;
