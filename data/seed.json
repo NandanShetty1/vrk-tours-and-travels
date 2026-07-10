@@ -11,6 +11,7 @@
     "bankDetails": "",
     "paymentInstructions": "Owner will confirm the final payable amount before customer payment.",
     "gatewayNote": "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
+    "authNote": "OTP login, Google login, Apple login, and Microsoft login require provider accounts and production keys before enabling.",
     "invoicePrefix": "VRK",
     "terms": [
       "Final fare is confirmed by owner/admin before payment.",
