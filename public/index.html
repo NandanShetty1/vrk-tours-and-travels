@@ -17,8 +17,37 @@
       </a>
     </header>
 
-    <main class="customer-shell">
-      <section class="booking-panel" aria-labelledby="booking-title">
+    <section class="hero-showcase" id="heroShowcase" aria-label="Featured travel offers">
+      <div id="heroCarousel" class="hero-carousel"></div>
+    </section>
+
+    <main class="customer-flow">
+      <section class="catalog-area" aria-label="Available services">
+        <div class="toolbar">
+          <div>
+            <span class="eyebrow">Available now</span>
+            <h2>Services and packages</h2>
+          </div>
+          <div class="segmented" role="tablist" aria-label="Catalog type">
+            <button class="active" data-tab="cars" type="button">Cars</button>
+            <button data-tab="tours" type="button">Tours</button>
+            <button data-tab="days" type="button">One day</button>
+          </div>
+        </div>
+        <div id="catalog" class="catalog-grid"></div>
+      </section>
+
+      <section class="gallery-area" aria-label="Trip gallery">
+        <div class="section-title">
+          <div>
+            <span class="eyebrow">Travel gallery</span>
+            <h2>Completed trips and updates</h2>
+          </div>
+        </div>
+        <div id="galleryGrid" class="gallery-grid"></div>
+      </section>
+
+      <section class="booking-panel booking-bottom" id="bookingSection" aria-labelledby="booking-title">
         <div class="panel-heading">
           <span class="eyebrow">Live booking desk</span>
           <h1 id="booking-title">Book your cab or travel package</h1>
@@ -82,22 +111,63 @@
           <div id="trackResult" class="track-result" aria-live="polite"></div>
         </div>
       </section>
-
-      <section class="catalog-area" aria-label="Available services">
-        <div class="toolbar">
-          <div>
-            <span class="eyebrow">Available now</span>
-            <h2>Services and packages</h2>
-          </div>
-          <div class="segmented" role="tablist" aria-label="Catalog type">
-            <button class="active" data-tab="cars" type="button">Cars</button>
-            <button data-tab="tours" type="button">Tours</button>
-            <button data-tab="days" type="button">One day</button>
-          </div>
-        </div>
-        <div id="catalog" class="catalog-grid"></div>
-      </section>
     </main>
+
+    <div class="booking-modal hidden" id="bookingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="booking-modal-panel">
+        <button class="modal-close" id="modalClose" type="button" aria-label="Close booking popup">x</button>
+        <div class="panel-heading">
+          <span class="eyebrow">Quick booking</span>
+          <h2 id="modalTitle">Send booking request</h2>
+          <p id="modalMessage">Owner will confirm the exact fare and payment details.</p>
+        </div>
+        <form id="modalBookingForm" class="form-grid compact">
+          <label>
+            Customer name
+            <input name="customerName" autocomplete="name" required>
+          </label>
+          <label>
+            Mobile number
+            <input name="phone" autocomplete="tel" required>
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" autocomplete="email">
+          </label>
+          <label>
+            Passengers
+            <input name="passengers" type="number" min="1" value="1" required>
+          </label>
+          <label>
+            Travel date
+            <input name="travelDate" type="date" required>
+          </label>
+          <label>
+            Return date
+            <input name="returnDate" type="date">
+          </label>
+          <label class="full">
+            Pickup location
+            <input name="pickupLocation" required>
+          </label>
+          <label class="full">
+            Drop location
+            <input name="dropLocation">
+          </label>
+          <label class="full">
+            Notes
+            <textarea name="message" rows="3" placeholder="Timing, luggage, temple darshan, special request"></textarea>
+          </label>
+          <input type="hidden" name="bookingType" value="car">
+          <input type="hidden" name="packageId">
+          <input type="hidden" name="packageTitle">
+          <input type="hidden" name="amount">
+          <div class="selected-strip full">Select a service or send a general enquiry.</div>
+          <button class="primary full" type="submit">Send booking request</button>
+          <p class="form-message full" role="status"></p>
+        </form>
+      </div>
+    </div>
 
     <script src="/js/api.js"></script>
     <script src="/js/customer.js"></script>
