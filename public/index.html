@@ -15,6 +15,11 @@
           <small>Cars, tours, and one day packages</small>
         </span>
       </a>
+      <nav class="topnav customer-nav" aria-label="Customer">
+        <a href="#customerAccount">Sign in</a>
+        <a href="#bookingSection">Book</a>
+        <a href="#trackBooking">Track</a>
+      </nav>
     </header>
 
     <section class="hero-showcase" id="heroShowcase" aria-label="Featured travel offers">
@@ -22,6 +27,38 @@
     </section>
 
     <main class="customer-flow">
+      <section class="customer-account" id="customerAccount" aria-labelledby="customer-account-title">
+        <div class="account-copy">
+          <span class="eyebrow">Customer account</span>
+          <h2 id="customer-account-title">Sign in before booking</h2>
+          <p id="customerAccountStatus">Use mobile number or email so your booking form is filled correctly.</p>
+        </div>
+        <div class="account-panel">
+          <form id="customerLoginForm" class="form-grid compact">
+            <label>
+              Customer name
+              <input name="customerName" autocomplete="name" required>
+            </label>
+            <label>
+              Mobile number
+              <input name="phone" autocomplete="tel" inputmode="tel" required>
+            </label>
+            <label class="full">
+              Email
+              <input name="email" type="email" autocomplete="email">
+            </label>
+            <button class="primary full" type="submit">Continue</button>
+            <p class="form-message full" id="customerLoginMessage" role="status"></p>
+          </form>
+          <div class="provider-login-row" aria-label="Social sign in options">
+            <button class="ghost" data-auth-provider="Google" type="button">Google</button>
+            <button class="ghost" data-auth-provider="Apple" type="button">Apple</button>
+            <button class="ghost" data-auth-provider="Microsoft" type="button">Microsoft</button>
+          </div>
+          <div id="customerAccountSummary" class="account-summary hidden"></div>
+        </div>
+      </section>
+
       <section class="catalog-area" aria-label="Available services">
         <div class="toolbar">
           <div>
@@ -102,7 +139,7 @@
           <p class="form-message full" id="bookingMessage" role="status"></p>
         </form>
 
-        <div class="tracker-box">
+        <div class="tracker-box" id="trackBooking">
           <h2>Track booking</h2>
           <form id="trackForm" class="track-form">
             <input name="bookingId" placeholder="Booking ID, example BK_sample" required>
