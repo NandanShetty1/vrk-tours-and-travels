@@ -7,8 +7,10 @@
     "address": "",
     "gstNumber": "",
     "upiId": "",
+    "qrImage": "",
     "bankDetails": "",
     "paymentInstructions": "Owner will confirm the final payable amount before customer payment.",
+    "gatewayNote": "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
     "invoicePrefix": "VRK",
     "terms": [
       "Final fare is confirmed by owner/admin before payment.",
@@ -21,5 +23,15 @@
   "tourPackages": [],
   "dayPackages": [],
   "drivers": [],
+  "banners": [],
+  "gallery": [],
+  "popupSettings": {
+    "enabled": false,
+    "title": "Plan your next trip with VRK",
+    "message": "Send a booking request and owner will confirm the final fare.",
+    "buttonLabel": "Book now",
+    "showOnEveryVisit": false,
+    "image": ""
+  },
   "bookings": []
 }
