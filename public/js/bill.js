@@ -106,6 +106,7 @@
           <div>
             <h2>Payment Details</h2>
             <p>${VRK.escapeHtml(business.paymentInstructions || "Owner will share payment details after confirmation.")}</p>
+            ${business.qrImage ? `<img class="bill-qr" src="${VRK.escapeHtml(business.qrImage)}" alt="Payment QR">` : ""}
             ${business.upiId ? `<p><b>UPI</b>${VRK.escapeHtml(business.upiId)}</p>` : ""}
             ${business.bankDetails ? `<p><b>Bank</b>${VRK.escapeHtml(business.bankDetails)}</p>` : ""}
           </div>
