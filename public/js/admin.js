@@ -17,6 +17,9 @@
     tours: document.querySelector("#toursSection"),
     days: document.querySelector("#daysSection"),
     drivers: document.querySelector("#driversSection"),
+    banners: document.querySelector("#bannersSection"),
+    gallery: document.querySelector("#gallerySection"),
+    popup: document.querySelector("#popupSection"),
     settings: document.querySelector("#settingsSection")
   };
 
@@ -92,6 +95,38 @@
           ["accessCode", "Access code", "text"],
           ["rating", "Rating", "number"]
         ]
+      },
+      banners: {
+        endpoint: "/api/admin/banners",
+        archive: "banners",
+        title: "Homepage banners",
+        empty: "No banners added.",
+        fields: [
+          ["prompt", "Prompt for banner/ad idea", "textarea"],
+          ["title", "Banner title", "text"],
+          ["subtitle", "Banner subtitle", "textarea"],
+          ["image", "Banner image URL", "url"],
+          ["ctaLabel", "Button label", "text"],
+          ["targetType", "Target type: car, tour, day, or blank", "text"],
+          ["targetId", "Target service/package ID", "text"],
+          ["sortOrder", "Sort order", "number"]
+        ]
+      },
+      gallery: {
+        endpoint: "/api/admin/gallery",
+        archive: "gallery",
+        title: "Gallery",
+        empty: "No gallery media added.",
+        fields: [
+          ["title", "Gallery title", "text"],
+          ["caption", "Caption", "textarea"],
+          ["mediaType", "Media type: image or video", "text"],
+          ["mediaUrl", "Image or video URL", "url"],
+          ["thumbnail", "Thumbnail URL", "url"],
+          ["tripDate", "Trip date", "date"],
+          ["tags", "Tags, one per line", "textarea"],
+          ["sortOrder", "Sort order", "number"]
+        ]
       }
     }[section];
   }
@@ -101,6 +136,8 @@
     if (section === "tours") return state.data.tourPackages;
     if (section === "days") return state.data.dayPackages;
     if (section === "drivers") return state.data.drivers;
+    if (section === "banners") return state.data.banners;
+    if (section === "gallery") return state.data.gallery;
     return [];
   }
 
@@ -119,6 +156,9 @@
     renderCollection("tours");
     renderCollection("days");
     renderCollection("drivers");
+    renderCollection("banners");
+    renderCollection("gallery");
+    renderPopup();
     renderSettings();
   }
 
@@ -421,7 +461,7 @@
     const form = event.currentTarget;
     const payload = VRK.formToObject(form);
     payload.active = form.elements.active.checked;
-    ["seats", "ratePerKm", "dayRate", "price", "rating"].forEach((field) => {
+    ["seats", "ratePerKm", "dayRate", "price", "rating", "sortOrder"].forEach((field) => {
       if (payload[field] !== undefined && payload[field] !== "") payload[field] = Number(payload[field]);
     });
     const button = form.querySelector("button");
@@ -464,6 +504,69 @@
       headers: adminHeaders()
     });
     await load();
+  }
+
+  function renderPopup() {
+    const popup = state.data.popupSettings || {};
+    sections.popup.innerHTML = `
+      <div class="section-title">
+        <div>
+          <span class="eyebrow">Website popup</span>
+          <h2>First-visit booking popup</h2>
+        </div>
+      </div>
+      <form id="popupForm" class="admin-form form-grid">
+        <label class="switch-row full">
+          <input name="enabled" type="checkbox" ${popup.enabled ? "checked" : ""}>
+          Show popup when customer opens website
+        </label>
+        <label>
+          Popup title
+          <input name="title" value="${VRK.escapeHtml(popup.title || "")}">
+        </label>
+        <label>
+          Button label
+          <input name="buttonLabel" value="${VRK.escapeHtml(popup.buttonLabel || "Book now")}">
+        </label>
+        <label class="full">
+          Popup message
+          <textarea name="message" rows="3">${VRK.escapeHtml(popup.message || "")}</textarea>
+        </label>
+        <label class="full">
+          Popup image URL
+          <input name="image" type="url" value="${VRK.escapeHtml(popup.image || "")}">
+        </label>
+        <label class="switch-row full">
+          <input name="showOnEveryVisit" type="checkbox" ${popup.showOnEveryVisit ? "checked" : ""}>
+          Show every visit instead of once per browser session
+        </label>
+        <button class="primary full" type="submit">Save popup settings</button>
+      </form>
+    `;
+
+    sections.popup.querySelector("#popupForm").addEventListener("submit", savePopup);
+  }
+
+  async function savePopup(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const payload = VRK.formToObject(form);
+    payload.enabled = form.elements.enabled.checked;
+    payload.showOnEveryVisit = form.elements.showOnEveryVisit.checked;
+    const button = form.querySelector("button");
+    button.disabled = true;
+    try {
+      await VRK.request("/api/admin/popup", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify(payload)
+      });
+      await load();
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function renderSettings() {
@@ -509,12 +612,20 @@
           <input name="upiId" value="${VRK.escapeHtml(business.upiId)}">
         </label>
         <label class="full">
+          UPI QR image URL
+          <input name="qrImage" type="url" value="${VRK.escapeHtml(business.qrImage || "")}">
+        </label>
+        <label class="full">
           Bank details
           <textarea name="bankDetails" rows="3">${VRK.escapeHtml(business.bankDetails)}</textarea>
         </label>
         <label class="full">
           Payment instructions shown to customer
           <textarea name="paymentInstructions" rows="3">${VRK.escapeHtml(business.paymentInstructions)}</textarea>
+        </label>
+        <label class="full">
+          Payment gateway note
+          <textarea name="gatewayNote" rows="2">${VRK.escapeHtml(business.gatewayNote || "")}</textarea>
         </label>
         <label class="full">
           Bill terms, one per line
