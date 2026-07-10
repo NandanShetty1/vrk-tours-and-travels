@@ -165,6 +165,7 @@ function normalizeStore(store) {
   store.business = {
     qrImage: "",
     gatewayNote: "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
+    authNote: "OTP login, Google login, Apple login, and Microsoft login require provider accounts and production keys before enabling.",
     ...store.business
   };
   store.banners = Array.isArray(store.banners) ? store.banners : [];
@@ -528,6 +529,7 @@ async function handleApi(req, res) {
       features: normalizeArrayText(body.features),
       includedItems: normalizeArrayText(body.includedItems),
       extraCharges: normalizeArrayText(body.extraCharges),
+      terms: normalizeArrayText(body.terms),
       active: body.active !== false,
       createdAt: body.createdAt || now(),
       updatedAt: now()
@@ -553,6 +555,7 @@ async function handleApi(req, res) {
       inclusions: normalizeArrayText(body.inclusions),
       exclusions: normalizeArrayText(body.exclusions),
       itinerary: normalizeArrayText(body.itinerary),
+      terms: normalizeArrayText(body.terms),
       active: body.active !== false,
       createdAt: body.createdAt || now(),
       updatedAt: now()
@@ -577,6 +580,7 @@ async function handleApi(req, res) {
       overview: String(body.overview || "").trim(),
       highlights: normalizeArrayText(body.highlights),
       exclusions: normalizeArrayText(body.exclusions),
+      terms: normalizeArrayText(body.terms),
       active: body.active !== false,
       createdAt: body.createdAt || now(),
       updatedAt: now()
@@ -617,9 +621,13 @@ async function handleApi(req, res) {
       id: body.id || id("BAN"),
       title,
       subtitle: String(body.subtitle || (prompt ? "Owner curated travel offer from VRK Tours and Travels" : "")).trim(),
+      details: String(body.details || "").trim(),
+      terms: normalizeArrayText(body.terms),
+      validUntil: String(body.validUntil || "").trim(),
+      offerLabel: String(body.offerLabel || "").trim(),
       prompt,
       image: String(body.image || "").trim(),
-      ctaLabel: String(body.ctaLabel || "Book this trip").trim(),
+      ctaLabel: String(body.ctaLabel || "View details").trim(),
       targetType: String(body.targetType || "").trim(),
       targetId: String(body.targetId || "").trim(),
       sortOrder: Number(body.sortOrder || 0),
