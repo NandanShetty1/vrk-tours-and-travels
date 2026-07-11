@@ -16,9 +16,12 @@
         </span>
       </a>
       <nav class="topnav customer-nav" aria-label="Customer">
-        <a href="#customerAccount">Sign in</a>
         <a href="#bookingSection">Book</a>
         <a href="#trackBooking">Track</a>
+        <button class="account-button" id="accountButton" type="button" aria-label="Open customer account">
+          <span class="account-avatar" id="accountAvatar">?</span>
+          <span id="accountButtonLabel">Sign in</span>
+        </button>
       </nav>
     </header>
 
@@ -27,38 +30,6 @@
     </section>
 
     <main class="customer-flow">
-      <section class="customer-account" id="customerAccount" aria-labelledby="customer-account-title">
-        <div class="account-copy">
-          <span class="eyebrow">Customer account</span>
-          <h2 id="customer-account-title">Sign in before booking</h2>
-          <p id="customerAccountStatus">Use mobile number or email so your booking form is filled correctly.</p>
-        </div>
-        <div class="account-panel">
-          <form id="customerLoginForm" class="form-grid compact">
-            <label>
-              Customer name
-              <input name="customerName" autocomplete="name" required>
-            </label>
-            <label>
-              Mobile number
-              <input name="phone" autocomplete="tel" inputmode="tel" required>
-            </label>
-            <label class="full">
-              Email
-              <input name="email" type="email" autocomplete="email">
-            </label>
-            <button class="primary full" type="submit">Continue</button>
-            <p class="form-message full" id="customerLoginMessage" role="status"></p>
-          </form>
-          <div class="provider-login-row" aria-label="Social sign in options">
-            <button class="ghost" data-auth-provider="Google" type="button">Google</button>
-            <button class="ghost" data-auth-provider="Apple" type="button">Apple</button>
-            <button class="ghost" data-auth-provider="Microsoft" type="button">Microsoft</button>
-          </div>
-          <div id="customerAccountSummary" class="account-summary hidden"></div>
-        </div>
-      </section>
-
       <section class="catalog-area" aria-label="Available services">
         <div class="toolbar">
           <div>
@@ -205,6 +176,48 @@
           <button class="primary full" type="submit">Send booking request</button>
           <p class="form-message full" role="status"></p>
         </form>
+      </div>
+    </div>
+
+    <div class="booking-modal hidden" id="accountModal" role="dialog" aria-modal="true" aria-labelledby="customer-account-title">
+      <div class="booking-modal-panel account-modal-panel">
+        <button class="modal-close" id="accountClose" type="button" aria-label="Close customer account">x</button>
+        <section class="customer-account" id="customerAccount" aria-labelledby="customer-account-title">
+          <div class="account-copy">
+            <span class="eyebrow">Customer account</span>
+            <h2 id="customer-account-title">Login or create account</h2>
+            <p id="customerAccountStatus">Use mobile number or email so your booking form is filled correctly.</p>
+          </div>
+          <div class="account-panel">
+            <div class="segmented auth-tabs" role="tablist" aria-label="Account mode">
+              <button class="active" data-auth-mode="login" type="button">Login</button>
+              <button data-auth-mode="signup" type="button">Create account</button>
+            </div>
+            <form id="customerLoginForm" class="form-grid compact">
+              <label>
+                Customer name
+                <input name="customerName" autocomplete="name" required>
+              </label>
+              <label>
+                Mobile number
+                <input name="phone" autocomplete="tel" inputmode="tel" required>
+              </label>
+              <label class="full">
+                Email
+                <input name="email" type="email" autocomplete="email">
+              </label>
+              <button class="primary full" type="submit">Continue securely</button>
+              <p class="form-message full" id="customerLoginMessage" role="status"></p>
+            </form>
+            <div class="provider-login-row" aria-label="Social sign in options">
+              <button class="ghost" data-auth-provider="Google" type="button">Google</button>
+              <button class="ghost" data-auth-provider="Apple" type="button">Apple</button>
+              <button class="ghost" data-auth-provider="Microsoft" type="button">Microsoft</button>
+            </div>
+            <p class="auth-note">OTP and social login will be enabled after Firebase/Auth provider keys are added.</p>
+            <div id="customerAccountSummary" class="account-summary hidden"></div>
+          </div>
+        </section>
       </div>
     </div>
 
