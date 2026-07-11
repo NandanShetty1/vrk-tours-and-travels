@@ -1,60 +1,46 @@
 # VRK Customer Login Setup
 
-Use Firebase Authentication for customer login because it supports phone OTP, email, Google, Apple, and Microsoft in one system.
+The customer website is prepared for real verified login. Customers cannot be treated as signed in just by typing an email or mobile number. Real login uses Firebase Authentication.
 
-## 1. Create Firebase project
+## What Works After Setup
+
+- New customer clicks the account icon, chooses Create account, verifies mobile OTP/email/social login, then account is created.
+- Existing customer clicks Login and verifies again.
+- If an existing customer clicks Create account, the website shows: "You already have an account. Please login."
+- If a new customer clicks Login before creating an account, the website shows: "No customer account found. Please create an account first."
+- Customer can logout.
+- Customer can delete their VRK website account.
+- After Firebase is configured, booking requires a verified customer account.
+
+## Firebase Project
 
 1. Open https://console.firebase.google.com/
-2. Create a project for `VRK Tours and Travels`.
+2. Create project: `VRK Tours and Travels`.
 3. Add a Web app.
-4. Copy the Firebase web config:
+4. Copy the Firebase web config values.
 
-```js
-const firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  appId: "..."
-};
+Add these in Render > your service > Environment:
+
+```text
+FIREBASE_API_KEY=...
+FIREBASE_AUTH_DOMAIN=...
+FIREBASE_PROJECT_ID=...
+FIREBASE_APP_ID=...
+FIREBASE_MESSAGING_SENDER_ID=...
+FIREBASE_STORAGE_BUCKET=...
+FIREBASE_MEASUREMENT_ID=...
 ```
 
-The Firebase web `apiKey` is not a password. It identifies the Firebase project, but it should still be restricted to your website domain in Google Cloud.
+The web `FIREBASE_API_KEY` is not a password, but restrict it to your website domain in Google Cloud.
 
-## 2. Authorize website domain
+## Firebase Admin Backend Keys
 
-In Firebase Console:
+Firebase Console:
 
-1. Go to Authentication.
-2. Open Settings.
-3. In Authorized domains, add:
-   - `vrk-tours-and-travels.onrender.com`
-   - your custom domain later, for example `vrktours.com`
-
-Phone OTP will not work correctly until the production domain is authorized.
-
-## 3. Enable sign-in methods
-
-In Firebase Console > Authentication > Sign-in method:
-
-1. Enable Phone.
-2. Enable Email if you want email/password or email-link login.
-3. Enable Google.
-4. Enable Apple only after Apple Developer setup.
-5. Enable Microsoft and paste Microsoft Client ID and Client Secret from Microsoft Azure.
-
-For phone OTP, also set SMS region policy to allow India and any other country you serve.
-
-## 4. Apple and Microsoft extra keys
-
-Apple login requires Apple Developer Program setup. Apple will give a Services ID, Team ID, Key ID, and private key. Add those in Firebase Apple provider settings, not in public code.
-
-Microsoft login requires an app registration in Microsoft Azure. Copy Client ID and Client Secret into Firebase Microsoft provider settings, not in public code.
-
-## 5. Backend verification
-
-After Firebase login works in the browser, the browser sends a Firebase ID token to this Node server. The server must verify it using Firebase Admin SDK before creating a trusted customer account.
-
-Render environment variables needed later:
+1. Project settings.
+2. Service accounts.
+3. Generate new private key.
+4. Copy these values into Render environment:
 
 ```text
 FIREBASE_PROJECT_ID=your-project-id
@@ -62,8 +48,54 @@ FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...@your-project.iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n
 ```
 
-Never put the Firebase private key, Apple private key, Microsoft secret, or payment gateway secret inside HTML, browser JavaScript, GitHub, or the admin portal.
+Keep `FIREBASE_PRIVATE_KEY` secret. Never put it in HTML, browser JavaScript, GitHub, or admin portal fields.
 
-## 6. Current project status
+## Authorized Domains
 
-The website now has the correct account icon and login/create-account popup UI. Real OTP/social sign-in becomes active after the Firebase project and provider keys are created.
+Firebase Console > Authentication > Settings > Authorized domains:
+
+```text
+vrk-tours-and-travels.onrender.com
+your custom domain later
+```
+
+## Enable Sign-In Methods
+
+Firebase Console > Authentication > Sign-in method:
+
+- Phone: enable for mobile OTP.
+- Email/Password: enable Email link/passwordless sign-in if available in your Firebase console.
+- Google: enable and configure consent screen in Google Cloud.
+- Apple: needs Apple Developer account, Services ID, Team ID, Key ID, and private key.
+- Microsoft: needs Microsoft Azure App Registration Client ID and Client Secret.
+
+## Google OAuth
+
+Firebase can create the Google OAuth client automatically. If asked, open Google Cloud Console, configure OAuth consent screen, and keep the authorized domain as your Render/custom domain.
+
+## Apple OAuth
+
+Apple Developer account is required:
+
+1. Create an Identifier / Services ID.
+2. Add Firebase callback URL shown in Firebase Apple provider settings.
+3. Create Apple private key.
+4. Add Team ID, Key ID, Services ID, and private key into Firebase Apple provider settings.
+
+## Microsoft OAuth
+
+Microsoft Azure Portal:
+
+1. App registrations.
+2. New registration.
+3. Add Firebase callback URL shown in Firebase Microsoft provider settings.
+4. Create Client Secret.
+5. Add Client ID and Client Secret into Firebase Microsoft provider settings.
+
+## After Adding Keys
+
+1. Render service > Manual Deploy > Deploy latest commit.
+2. Open customer website.
+3. Click top-right account icon.
+4. Test Create account with your phone/email.
+5. Test Login with the same account.
