@@ -6,6 +6,14 @@
     infoItem: null,
     heroTimer: null,
     customerProfile: null,
+    auth: {
+      ready: false,
+      configured: false,
+      mode: "login",
+      confirmationResult: null,
+      user: null,
+      modules: null
+    },
     popupShown: false
   };
 
@@ -25,6 +33,9 @@
   const customerAccountSummary = document.querySelector("#customerAccountSummary");
   const providerLoginRow = document.querySelector(".provider-login-row");
   const authModeButtons = Array.from(document.querySelectorAll("[data-auth-mode]"));
+  const otpPanel = document.querySelector("#otpPanel");
+  const verifyOtpButton = document.querySelector("#verifyOtpButton");
+  const recaptchaContainer = document.querySelector("#recaptchaContainer");
   const bookingModal = document.querySelector("#bookingModal");
   const modalClose = document.querySelector("#modalClose");
   const infoModal = document.querySelector("#infoModal");
@@ -43,15 +54,20 @@
 
   function loadCustomerProfile() {
     try {
-      return JSON.parse(sessionStorage.getItem("vrkCustomerProfile") || "null");
+      const profile = JSON.parse(sessionStorage.getItem("vrkCustomerProfile") || "null");
+      return profile && profile.verified ? profile : null;
     } catch {
       return null;
     }
   }
 
   function saveCustomerProfile(profile) {
-    state.customerProfile = profile;
-    sessionStorage.setItem("vrkCustomerProfile", JSON.stringify(profile));
+    state.customerProfile = {
+      ...profile,
+      verified: true,
+      customerName: profile.customerName || profile.name || "Customer"
+    };
+    sessionStorage.setItem("vrkCustomerProfile", JSON.stringify(state.customerProfile));
     renderCustomerAccount();
     applyCustomerProfile();
   }
@@ -73,17 +89,123 @@
     [bookingForm, modalBookingForm].forEach((form) => {
       if (!form || !form.elements) return;
       ["customerName", "phone", "email"].forEach((field) => {
-        if (form.elements[field] && state.customerProfile[field]) {
-          form.elements[field].value = state.customerProfile[field];
+        const value = field === "customerName" ? state.customerProfile.customerName || state.customerProfile.name : state.customerProfile[field];
+        if (form.elements[field] && value) {
+          form.elements[field].value = value;
         }
       });
     });
   }
 
+  function setAuthMessage(message, tone) {
+    VRK.setMessage(customerLoginMessage, message, tone || "");
+  }
+
+  function normalizePhone(phone) {
+    const trimmed = String(phone || "").replace(/\s+/g, "");
+    if (!trimmed) return "";
+    if (trimmed.startsWith("+")) return trimmed;
+    return `+91${trimmed.replace(/^0+/, "")}`;
+  }
+
+  async function firebaseIdToken() {
+    if (!state.auth.user) return "";
+    return state.auth.user.getIdToken();
+  }
+
+  async function customerRequest(path, options) {
+    const token = await firebaseIdToken();
+    return VRK.request(path, {
+      ...(options || {}),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...((options && options.headers) || {})
+      }
+    });
+  }
+
+  async function finishVerifiedCustomer(user, mode, extra) {
+    const token = await user.getIdToken();
+    const response = await fetch("/api/customers/session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        mode,
+        displayName: extra && extra.displayName,
+        phone: extra && extra.phone,
+        email: extra && extra.email,
+        provider: extra && extra.provider
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Customer login failed");
+    }
+    saveCustomerProfile(result.customer);
+    setAuthMessage(result.created ? "Account created successfully." : "Logged in successfully.", "good");
+    closeAccountModal();
+  }
+
+  async function setupFirebaseAuth() {
+    const config = await VRK.request("/api/auth/config");
+    state.auth.configured = Boolean(config.configured && config.firebaseConfig);
+    if (!state.auth.configured) {
+      state.auth.ready = true;
+      renderCustomerAccount();
+      setAuthMessage(
+        "Secure login is not active yet. Add Firebase keys in Render environment variables.",
+        "danger"
+      );
+      return;
+    }
+
+    const appModule = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
+    const authModule = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+    const app = appModule.initializeApp(config.firebaseConfig);
+    const auth = authModule.getAuth(app);
+    state.auth.modules = authModule;
+    state.auth.instance = auth;
+    state.auth.ready = true;
+
+    authModule.onAuthStateChanged(auth, async (user) => {
+      state.auth.user = user;
+      if (!user) {
+        sessionStorage.removeItem("vrkCustomerProfile");
+        state.customerProfile = null;
+        renderCustomerAccount();
+        return;
+      }
+      try {
+        const result = await customerRequest("/api/customers/me");
+        saveCustomerProfile(result.customer);
+      } catch {
+        state.customerProfile = null;
+        sessionStorage.removeItem("vrkCustomerProfile");
+        renderCustomerAccount();
+      }
+    });
+
+    if (authModule.isSignInWithEmailLink(auth, window.location.href)) {
+      const pending = JSON.parse(localStorage.getItem("vrkEmailLogin") || "{}");
+      const email = pending.email || window.prompt("Enter your email to complete sign in");
+      if (email) {
+        const credential = await authModule.signInWithEmailLink(auth, email, window.location.href);
+        localStorage.removeItem("vrkEmailLogin");
+        await finishVerifiedCustomer(credential.user, pending.mode || "login", pending);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }
+
   function renderCustomerAccount() {
     const profile = state.customerProfile;
     if (!profile) {
-      customerAccountStatus.textContent = "Use mobile number or email so your booking form is filled correctly.";
+      customerAccountStatus.textContent = state.auth.configured
+        ? "Login or create account with verified mobile OTP, email link, or OAuth."
+        : "Secure customer login needs Firebase keys before customers can sign in.";
       accountButtonLabel.textContent = "Sign in";
       accountAvatar.textContent = "?";
       accountButton.classList.remove("signed-in");
@@ -93,19 +215,23 @@
       customerAccountSummary.innerHTML = "";
       return;
     }
-    customerAccountStatus.textContent = "Signed in for this browser session.";
-    accountButtonLabel.textContent = profile.customerName.split(/\s+/)[0] || "Account";
-    accountAvatar.textContent = (profile.customerName || "A").slice(0, 1).toUpperCase();
+    const name = profile.customerName || profile.name || "Customer";
+    customerAccountStatus.textContent = "Signed in with verified account.";
+    accountButtonLabel.textContent = name.split(/\s+/)[0] || "Account";
+    accountAvatar.textContent = name.slice(0, 1).toUpperCase();
     accountButton.classList.add("signed-in");
     customerLoginForm.classList.add("hidden");
     providerLoginRow.classList.add("hidden");
     customerAccountSummary.classList.remove("hidden");
     customerAccountSummary.innerHTML = `
       <div>
-        <strong>${VRK.escapeHtml(profile.customerName)}</strong>
+        <strong>${VRK.escapeHtml(name)}</strong>
         <small>${VRK.escapeHtml(profile.phone)}${profile.email ? ` | ${VRK.escapeHtml(profile.email)}` : ""}</small>
       </div>
-      <button class="ghost" data-customer-logout type="button">Change</button>
+      <div class="account-summary-actions">
+        <button class="ghost" data-customer-logout type="button">Logout</button>
+        <button class="ghost danger-button" data-customer-delete type="button">Delete account</button>
+      </div>
     `;
   }
 
@@ -457,6 +583,14 @@
   function bindBookingForm(form, messageElement) {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (state.auth.configured && (!state.customerProfile || !state.auth.user)) {
+        openAccountModal();
+        setAuthMessage(
+          "Please login or create an account before booking.",
+          "danger"
+        );
+        return;
+      }
       updateFormSelection(form);
       const submitButton = form.querySelector("button[type='submit']");
       const statusElement = messageElement || form.querySelector(".form-message");
@@ -467,8 +601,10 @@
         const payload = VRK.formToObject(form);
         payload.passengers = Number(payload.passengers || 1);
         payload.amount = Number(payload.amount || 0);
+        const token = await firebaseIdToken();
         const result = await VRK.request("/api/bookings", {
           method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: JSON.stringify(payload)
         });
         VRK.setMessage(
@@ -500,20 +636,128 @@
 
   customerLoginForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const payload = VRK.formToObject(customerLoginForm);
-    const profile = {
-      customerName: String(payload.customerName || "").trim(),
-      phone: String(payload.phone || "").trim(),
-      email: String(payload.email || "").trim()
-    };
-    if (!profile.customerName || !profile.phone) {
-      VRK.setMessage(customerLoginMessage, "Enter customer name and mobile number.", "danger");
+    setAuthMessage("Use mobile OTP, email link, or social login to continue securely.", "active");
+  });
+
+  async function sendPhoneOtp() {
+    if (!state.auth.configured) {
+      setAuthMessage("Firebase keys are not configured yet. Add them in Render first.", "danger");
       return;
     }
-    saveCustomerProfile(profile);
-    VRK.setMessage(customerLoginMessage, "", "");
-    closeAccountModal();
-  });
+    const modules = state.auth.modules;
+    const form = VRK.formToObject(customerLoginForm);
+    const phone = normalizePhone(form.phone);
+    if (!phone) {
+      setAuthMessage("Enter mobile number with country code.", "danger");
+      return;
+    }
+    setAuthMessage("Sending OTP...", "active");
+    if (!window.vrkRecaptchaVerifier) {
+      window.vrkRecaptchaVerifier = new modules.RecaptchaVerifier(state.auth.instance, recaptchaContainer, {
+        size: "invisible"
+      });
+    }
+    state.auth.confirmationResult = await modules.signInWithPhoneNumber(
+      state.auth.instance,
+      phone,
+      window.vrkRecaptchaVerifier
+    );
+    otpPanel.classList.remove("hidden");
+    verifyOtpButton.classList.remove("hidden");
+    setAuthMessage("OTP sent. Enter the code to verify.", "good");
+  }
+
+  async function verifyPhoneOtp() {
+    if (!state.auth.confirmationResult) {
+      setAuthMessage("Send OTP first.", "danger");
+      return;
+    }
+    const form = VRK.formToObject(customerLoginForm);
+    const code = String(form.otpCode || "").trim();
+    if (!code) {
+      setAuthMessage("Enter the OTP code.", "danger");
+      return;
+    }
+    setAuthMessage("Verifying OTP...", "active");
+    const credential = await state.auth.confirmationResult.confirm(code);
+    await finishVerifiedCustomer(credential.user, state.auth.mode, {
+      displayName: form.customerName,
+      phone: normalizePhone(form.phone),
+      email: form.email,
+      provider: "phone"
+    });
+  }
+
+  async function sendEmailLink() {
+    if (!state.auth.configured) {
+      setAuthMessage("Firebase keys are not configured yet. Add them in Render first.", "danger");
+      return;
+    }
+    const modules = state.auth.modules;
+    const form = VRK.formToObject(customerLoginForm);
+    const email = String(form.email || "").trim();
+    if (!email) {
+      setAuthMessage("Enter email address.", "danger");
+      return;
+    }
+    await modules.sendSignInLinkToEmail(state.auth.instance, email, {
+      url: `${window.location.origin}${window.location.pathname}`,
+      handleCodeInApp: true
+    });
+    localStorage.setItem(
+      "vrkEmailLogin",
+      JSON.stringify({
+        mode: state.auth.mode,
+        email,
+        displayName: form.customerName,
+        phone: normalizePhone(form.phone),
+        provider: "emailLink"
+      })
+    );
+    setAuthMessage("Secure login link sent to email. Open that email link in this browser.", "good");
+  }
+
+  async function signInWithProvider(providerName) {
+    if (!state.auth.configured) {
+      setAuthMessage("Firebase keys are not configured yet. Add them in Render first.", "danger");
+      return;
+    }
+    const modules = state.auth.modules;
+    const provider =
+      providerName === "Google"
+        ? new modules.GoogleAuthProvider()
+        : new modules.OAuthProvider(providerName === "Apple" ? "apple.com" : "microsoft.com");
+    setAuthMessage(`Opening ${providerName} sign in...`, "active");
+    const credential = await modules.signInWithPopup(state.auth.instance, provider);
+    const form = VRK.formToObject(customerLoginForm);
+    await finishVerifiedCustomer(credential.user, state.auth.mode, {
+      displayName: form.customerName || credential.user.displayName,
+      phone: normalizePhone(form.phone),
+      email: form.email || credential.user.email,
+      provider: providerName
+    });
+  }
+
+  async function logoutCustomer() {
+    if (state.auth.modules && state.auth.instance) {
+      await state.auth.modules.signOut(state.auth.instance);
+    }
+    clearCustomerProfile();
+    setAuthMessage("Logged out.", "good");
+  }
+
+  async function deleteCustomerAccount() {
+    if (!state.auth.user) return;
+    if (!confirm("Delete this customer account from VRK website?")) return;
+    await customerRequest("/api/customers/me", { method: "DELETE" });
+    try {
+      await state.auth.modules.deleteUser(state.auth.user);
+    } catch {
+      await state.auth.modules.signOut(state.auth.instance);
+    }
+    clearCustomerProfile();
+    setAuthMessage("Account deleted.", "good");
+  }
 
   accountButton.addEventListener("click", openAccountModal);
   accountClose.addEventListener("click", closeAccountModal);
@@ -525,8 +769,8 @@
     button.addEventListener("click", () => {
       authModeButtons.forEach((item) => item.classList.toggle("active", item === button));
       const isSignup = button.dataset.authMode === "signup";
+      state.auth.mode = isSignup ? "create" : "login";
       document.querySelector("#customer-account-title").textContent = isSignup ? "Create customer account" : "Login to customer account";
-      customerLoginForm.querySelector("button[type='submit']").textContent = isSignup ? "Create account" : "Continue securely";
       customerAccountStatus.textContent = isSignup
         ? "Create account with verified mobile or email before booking."
         : "Login with verified mobile, email, or social account.";
@@ -540,7 +784,9 @@
     const bannerInfo = event.target.closest("[data-banner-info]");
     const openButton = event.target.closest("[data-open-booking]");
     const providerButton = event.target.closest("[data-auth-provider]");
+    const authAction = event.target.closest("[data-auth-action]");
     const customerLogout = event.target.closest("[data-customer-logout]");
+    const customerDelete = event.target.closest("[data-customer-delete]");
 
     if (selectButton || bookButton) {
       const id = (selectButton || bookButton).dataset.select || (selectButton || bookButton).dataset.book;
@@ -560,15 +806,22 @@
 
     if (openButton) openBookingModal();
 
-    if (providerButton) {
-      VRK.setMessage(
-        customerLoginMessage,
-        `${providerButton.dataset.authProvider} sign in needs production OAuth keys before enabling.`,
-        "active"
-      );
+    if (authAction) {
+      const action = authAction.dataset.authAction;
+      const task = action === "email" ? sendEmailLink() : sendPhoneOtp();
+      task.catch((error) => setAuthMessage(error.message, "danger"));
     }
 
-    if (customerLogout) clearCustomerProfile();
+    if (providerButton) {
+      signInWithProvider(providerButton.dataset.authProvider).catch((error) => setAuthMessage(error.message, "danger"));
+    }
+
+    if (customerLogout) logoutCustomer().catch((error) => setAuthMessage(error.message, "danger"));
+    if (customerDelete) deleteCustomerAccount().catch((error) => setAuthMessage(error.message, "danger"));
+  });
+
+  verifyOtpButton.addEventListener("click", () => {
+    verifyPhoneOtp().catch((error) => setAuthMessage(error.message, "danger"));
   });
 
   heroCarousel.addEventListener("keydown", (event) => {
@@ -758,6 +1011,12 @@
   bindBookingForm(modalBookingForm);
   state.customerProfile = loadCustomerProfile();
   renderCustomerAccount();
+  setupFirebaseAuth().catch((error) => {
+    state.auth.ready = true;
+    state.auth.configured = false;
+    renderCustomerAccount();
+    setAuthMessage(error.message, "danger");
+  });
   VRK.watchLiveChanges(load);
   load().catch((error) => {
     catalog.innerHTML = `<div class="empty-state">${VRK.escapeHtml(error.message)}</div>`;
