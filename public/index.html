@@ -196,17 +196,26 @@
             <form id="customerLoginForm" class="form-grid compact">
               <label>
                 Customer name
-                <input name="customerName" autocomplete="name" required>
+                <input name="customerName" autocomplete="name">
               </label>
               <label>
-                Mobile number
-                <input name="phone" autocomplete="tel" inputmode="tel" required>
+                Mobile number with country code
+                <input name="phone" autocomplete="tel" inputmode="tel" placeholder="+91XXXXXXXXXX">
               </label>
               <label class="full">
                 Email
                 <input name="email" type="email" autocomplete="email">
               </label>
-              <button class="primary full" type="submit">Continue securely</button>
+              <div class="auth-action-grid full">
+                <button class="primary" data-auth-action="phone" type="button">Send mobile OTP</button>
+                <button class="secondary" data-auth-action="email" type="button">Send email login link</button>
+              </div>
+              <label class="full hidden" id="otpPanel">
+                Enter mobile OTP
+                <input name="otpCode" inputmode="numeric" autocomplete="one-time-code">
+              </label>
+              <button class="primary full hidden" id="verifyOtpButton" type="button">Verify OTP</button>
+              <div id="recaptchaContainer" class="recaptcha-box full"></div>
               <p class="form-message full" id="customerLoginMessage" role="status"></p>
             </form>
             <div class="provider-login-row" aria-label="Social sign in options">
@@ -214,7 +223,7 @@
               <button class="ghost" data-auth-provider="Apple" type="button">Apple</button>
               <button class="ghost" data-auth-provider="Microsoft" type="button">Microsoft</button>
             </div>
-            <p class="auth-note">OTP and social login will be enabled after Firebase/Auth provider keys are added.</p>
+            <p class="auth-note">Only verified OTP, email link, or OAuth login creates a customer session.</p>
             <div id="customerAccountSummary" class="account-summary hidden"></div>
           </div>
         </section>
