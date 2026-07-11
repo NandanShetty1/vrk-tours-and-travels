@@ -200,6 +200,12 @@ img {
   gap: 8px;
 }
 
+.auth-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .auth-tabs {
   width: 100%;
 }
@@ -215,6 +221,22 @@ img {
   background: rgba(15, 118, 110, 0.08);
   color: var(--ink);
   font-size: 0.9rem;
+}
+
+.recaptcha-box {
+  min-height: 1px;
+}
+
+.account-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.danger-button {
+  border-color: rgba(185, 28, 28, 0.28);
+  color: var(--danger);
 }
 
 .account-summary {
@@ -1273,6 +1295,10 @@ textarea:focus {
   }
 
   .provider-login-row {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-action-grid {
     grid-template-columns: 1fr;
   }
 
