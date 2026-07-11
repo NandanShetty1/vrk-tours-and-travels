@@ -14,11 +14,17 @@
   const galleryGrid = document.querySelector("#galleryGrid");
   const bookingForm = document.querySelector("#bookingForm");
   const modalBookingForm = document.querySelector("#modalBookingForm");
+  const accountButton = document.querySelector("#accountButton");
+  const accountButtonLabel = document.querySelector("#accountButtonLabel");
+  const accountAvatar = document.querySelector("#accountAvatar");
+  const accountModal = document.querySelector("#accountModal");
+  const accountClose = document.querySelector("#accountClose");
   const customerLoginForm = document.querySelector("#customerLoginForm");
   const customerLoginMessage = document.querySelector("#customerLoginMessage");
   const customerAccountStatus = document.querySelector("#customerAccountStatus");
   const customerAccountSummary = document.querySelector("#customerAccountSummary");
   const providerLoginRow = document.querySelector(".provider-login-row");
+  const authModeButtons = Array.from(document.querySelectorAll("[data-auth-mode]"));
   const bookingModal = document.querySelector("#bookingModal");
   const modalClose = document.querySelector("#modalClose");
   const infoModal = document.querySelector("#infoModal");
@@ -78,6 +84,9 @@
     const profile = state.customerProfile;
     if (!profile) {
       customerAccountStatus.textContent = "Use mobile number or email so your booking form is filled correctly.";
+      accountButtonLabel.textContent = "Sign in";
+      accountAvatar.textContent = "?";
+      accountButton.classList.remove("signed-in");
       customerLoginForm.classList.remove("hidden");
       providerLoginRow.classList.remove("hidden");
       customerAccountSummary.classList.add("hidden");
@@ -85,6 +94,9 @@
       return;
     }
     customerAccountStatus.textContent = "Signed in for this browser session.";
+    accountButtonLabel.textContent = profile.customerName.split(/\s+/)[0] || "Account";
+    accountAvatar.textContent = (profile.customerName || "A").slice(0, 1).toUpperCase();
+    accountButton.classList.add("signed-in");
     customerLoginForm.classList.add("hidden");
     providerLoginRow.classList.add("hidden");
     customerAccountSummary.classList.remove("hidden");
@@ -95,6 +107,14 @@
       </div>
       <button class="ghost" data-customer-logout type="button">Change</button>
     `;
+  }
+
+  function openAccountModal() {
+    accountModal.classList.remove("hidden");
+  }
+
+  function closeAccountModal() {
+    accountModal.classList.add("hidden");
   }
 
   function itemByTab() {
@@ -492,6 +512,25 @@
     }
     saveCustomerProfile(profile);
     VRK.setMessage(customerLoginMessage, "", "");
+    closeAccountModal();
+  });
+
+  accountButton.addEventListener("click", openAccountModal);
+  accountClose.addEventListener("click", closeAccountModal);
+  accountModal.addEventListener("click", (event) => {
+    if (event.target === accountModal) closeAccountModal();
+  });
+
+  authModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      authModeButtons.forEach((item) => item.classList.toggle("active", item === button));
+      const isSignup = button.dataset.authMode === "signup";
+      document.querySelector("#customer-account-title").textContent = isSignup ? "Create customer account" : "Login to customer account";
+      customerLoginForm.querySelector("button[type='submit']").textContent = isSignup ? "Create account" : "Continue securely";
+      customerAccountStatus.textContent = isSignup
+        ? "Create account with verified mobile or email before booking."
+        : "Login with verified mobile, email, or social account.";
+    });
   });
 
   document.body.addEventListener("click", (event) => {
