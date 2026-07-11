@@ -116,6 +116,42 @@ img {
   color: var(--ink);
 }
 
+.account-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px 5px 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.account-button:hover,
+.account-button.signed-in {
+  border-color: rgba(15, 118, 110, 0.32);
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.account-button.signed-in .account-avatar {
+  background: var(--primary);
+}
+
 .customer-shell {
   display: grid;
   grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
@@ -136,11 +172,17 @@ img {
   grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
   gap: 18px;
   align-items: start;
-  padding: clamp(18px, 3vw, 26px);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
+}
+
+.account-modal-panel {
+  width: min(840px, 100%);
+}
+
+.account-modal-panel .customer-account {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .account-copy p {
@@ -156,6 +198,23 @@ img {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.auth-tabs {
+  width: 100%;
+}
+
+.auth-tabs button {
+  flex: 1;
+}
+
+.auth-note {
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border-left: 4px solid var(--primary);
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--ink);
+  font-size: 0.9rem;
 }
 
 .account-summary {
