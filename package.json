@@ -6,6 +6,10 @@
   "engines": {
     "node": ">=20"
   },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "pg": "^8.13.1"
+  },
   "scripts": {
     "start": "node server.js"
   },
