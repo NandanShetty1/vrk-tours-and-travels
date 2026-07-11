@@ -26,6 +26,7 @@ const MIME_TYPES = {
 const sseClients = new Set();
 let writeQueue = Promise.resolve();
 let pgPool;
+let firebaseAdminAuth;
 
 function now() {
   return new Date().toISOString();
@@ -161,6 +162,84 @@ function publicBusiness(business) {
   return safeBusiness;
 }
 
+function firebaseClientConfig() {
+  const config = {
+    apiKey: process.env.FIREBASE_API_KEY || "",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
+    projectId: process.env.FIREBASE_PROJECT_ID || "",
+    appId: process.env.FIREBASE_APP_ID || "",
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "",
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID || ""
+  };
+  const configured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
+  return { configured, firebaseConfig: configured ? config : null };
+}
+
+function firebaseAdminConfigured() {
+  return Boolean(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
+}
+
+function getFirebaseAuth() {
+  if (firebaseAdminAuth) return firebaseAdminAuth;
+  if (!firebaseAdminConfigured()) {
+    const err = new Error("Firebase Admin credentials are not configured");
+    err.status = 503;
+    throw err;
+  }
+  const { cert, getApps, initializeApp } = require("firebase-admin/app");
+  const { getAuth } = require("firebase-admin/auth");
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: String(process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n")
+      })
+    });
+  }
+  firebaseAdminAuth = getAuth();
+  return firebaseAdminAuth;
+}
+
+async function verifyCustomerToken(req) {
+  const header = String(req.headers.authorization || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    const err = new Error("Customer login token is required");
+    err.status = 401;
+    throw err;
+  }
+  return getFirebaseAuth().verifyIdToken(match[1]);
+}
+
+function customerPublic(customer) {
+  if (!customer || customer.deletedAt) return null;
+  return {
+    id: customer.id,
+    uid: customer.uid,
+    name: customer.name,
+    phone: customer.phone,
+    email: customer.email,
+    photoURL: customer.photoURL,
+    provider: customer.provider,
+    createdAt: customer.createdAt,
+    lastLoginAt: customer.lastLoginAt
+  };
+}
+
+function firebaseCustomerPayload(decoded, body) {
+  const firebase = decoded.firebase || {};
+  return {
+    uid: decoded.uid,
+    name: String(body.displayName || decoded.name || "").trim(),
+    phone: String(decoded.phone_number || body.phone || "").trim(),
+    email: String(decoded.email || body.email || "").trim(),
+    photoURL: String(decoded.picture || "").trim(),
+    provider: String(firebase.sign_in_provider || body.provider || "firebase").trim()
+  };
+}
+
 function normalizeStore(store) {
   store.business = {
     qrImage: "",
@@ -170,6 +249,7 @@ function normalizeStore(store) {
   };
   store.banners = Array.isArray(store.banners) ? store.banners : [];
   store.gallery = Array.isArray(store.gallery) ? store.gallery : [];
+  store.customers = Array.isArray(store.customers) ? store.customers : [];
   store.popupSettings = {
     enabled: false,
     title: "Plan your next trip with VRK",
@@ -320,6 +400,8 @@ function createBooking(store, payload) {
     packageId: payload.packageId || "",
     packageTitle: payload.packageTitle || (item && (item.name || item.title)) || "Custom booking",
     customerName: String(payload.customerName).trim(),
+    customerUid: String(payload.customerUid || "").trim(),
+    customerAccountId: String(payload.customerAccountId || "").trim(),
     phone: String(payload.phone).trim(),
     email: String(payload.email || "").trim(),
     passengers: Number(payload.passengers || 1),
@@ -414,6 +496,84 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/auth/config") {
+    const client = firebaseClientConfig();
+    sendJson(res, 200, {
+      configured: client.configured && firebaseAdminConfigured(),
+      clientConfigured: client.configured,
+      serverConfigured: firebaseAdminConfigured(),
+      firebaseConfig: client.firebaseConfig,
+      providers: ["phone", "emailLink", "google.com", "apple.com", "microsoft.com"]
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/customers/session") {
+    const body = await readBody(req);
+    const decoded = await verifyCustomerToken(req);
+    normalizeStore(store);
+    const mode = String(body.mode || "login");
+    const payload = firebaseCustomerPayload(decoded, body);
+    const existing = store.customers.find((customer) => customer.uid === payload.uid && !customer.deletedAt);
+
+    if (mode === "create" && existing) {
+      return sendJson(res, 409, {
+        error: "You already have an account. Please login.",
+        code: "ACCOUNT_EXISTS",
+        customer: customerPublic(existing)
+      });
+    }
+
+    if (mode === "login" && !existing) {
+      return sendJson(res, 404, {
+        error: "No customer account found. Please create an account first.",
+        code: "ACCOUNT_NOT_FOUND"
+      });
+    }
+
+    const customer = existing || {
+      id: id("CUS"),
+      uid: payload.uid,
+      createdAt: now()
+    };
+    customer.name = payload.name || customer.name || payload.phone || payload.email || "Customer";
+    customer.phone = payload.phone || customer.phone || "";
+    customer.email = payload.email || customer.email || "";
+    customer.photoURL = payload.photoURL || customer.photoURL || "";
+    customer.provider = payload.provider || customer.provider || "firebase";
+    customer.lastLoginAt = now();
+    customer.updatedAt = now();
+    if (!existing) store.customers.unshift(customer);
+    await saveStore(store);
+    sendJson(res, existing ? 200 : 201, {
+      customer: customerPublic(customer),
+      created: !existing,
+      alreadyExists: false
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/customers/me") {
+    const decoded = await verifyCustomerToken(req);
+    normalizeStore(store);
+    const customer = store.customers.find((item) => item.uid === decoded.uid && !item.deletedAt);
+    if (!customer) return sendError(res, 404, "No customer account found. Please create an account first");
+    sendJson(res, 200, { customer: customerPublic(customer) });
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname === "/api/customers/me") {
+    const decoded = await verifyCustomerToken(req);
+    normalizeStore(store);
+    const customer = store.customers.find((item) => item.uid === decoded.uid && !item.deletedAt);
+    if (!customer) return sendError(res, 404, "Customer account not found");
+    customer.deletedAt = now();
+    customer.updatedAt = now();
+    await saveStore(store);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/login") {
     const body = await readBody(req);
     sendJson(res, 200, { ok: body.pin === store.business.adminPin });
@@ -455,6 +615,20 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/bookings") {
     const body = await readBody(req);
+    let verifiedCustomer = null;
+    if (firebaseClientConfig().configured && firebaseAdminConfigured()) {
+      const decoded = await verifyCustomerToken(req);
+      normalizeStore(store);
+      verifiedCustomer = store.customers.find((item) => item.uid === decoded.uid && !item.deletedAt);
+      if (!verifiedCustomer) {
+        return sendError(res, 401, "Please login or create a verified customer account before booking");
+      }
+      body.customerUid = verifiedCustomer.uid;
+      body.customerAccountId = verifiedCustomer.id;
+      body.customerName = verifiedCustomer.name || body.customerName;
+      body.phone = verifiedCustomer.phone || body.phone;
+      body.email = verifiedCustomer.email || body.email;
+    }
     const booking = createBooking(store, body);
     await saveStore(store);
     sendJson(res, 201, { booking: bookingSummary(store, booking) });
