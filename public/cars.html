@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VRK Tours and Travels - Cars</title>
+    <link rel="stylesheet" href="/css/styles.css">
+  </head>
+  <body data-page="cars">
+    <header class="topbar">
+      <a class="brand" href="/">
+        <span class="brand-mark">VRK</span>
+        <span>
+          <strong>VRK Tours and Travels</strong>
+          <small>Fleet for local and outstation trips</small>
+        </span>
+      </a>
+      <nav class="topnav customer-nav" aria-label="Customer">
+        <a href="/">Home</a>
+        <a class="active" href="/cars.html">Cars</a>
+        <a href="#bookingSection">Book</a>
+        <a href="#trackBooking">Track</a>
+      </nav>
+    </header>
+
+    <section class="hero-showcase" id="heroShowcase" aria-label="Fleet highlights">
+      <div id="heroCarousel" class="hero-carousel"></div>
+    </section>
+
+    <main class="customer-flow fleet-page">
+      <section class="catalog-area" aria-label="All active cars">
+        <div class="toolbar">
+          <div>
+            <span class="eyebrow">VRK fleet</span>
+            <h2>All active cars</h2>
+            <p>Compare vehicle image, car name, category, seating, luggage, AC type, starting local rate, outstation rate, and availability before booking.</p>
+          </div>
+        </div>
+        <div id="catalog" class="catalog-grid"></div>
+      </section>
+
+      <section class="booking-panel booking-bottom" id="bookingSection" aria-labelledby="booking-title">
+        <div class="panel-heading">
+          <span class="eyebrow">Fleet booking desk</span>
+          <h1 id="booking-title">Book a VRK car</h1>
+          <p>Select a car from the fleet. Owner confirms final fare, driver, and payment before the trip.</p>
+        </div>
+
+        <form id="bookingForm" class="form-grid">
+          <label>
+            Customer name
+            <input name="customerName" autocomplete="name" required>
+          </label>
+          <label>
+            Mobile number
+            <input name="phone" autocomplete="tel" required>
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" autocomplete="email">
+          </label>
+          <label>
+            Passengers
+            <input name="passengers" type="number" min="1" value="1" required>
+          </label>
+          <label>
+            Travel date
+            <input name="travelDate" type="date" required>
+          </label>
+          <label>
+            Return date
+            <input name="returnDate" type="date">
+          </label>
+          <label class="full">
+            Pickup location
+            <input name="pickupLocation" required>
+          </label>
+          <label class="full">
+            Drop location
+            <input name="dropLocation">
+          </label>
+          <label class="full">
+            Notes
+            <textarea name="message" rows="3" placeholder="Pickup time, luggage, return plan, special request"></textarea>
+          </label>
+
+          <input type="hidden" name="bookingType" id="bookingType" value="car">
+          <input type="hidden" name="packageId" id="packageId">
+          <input type="hidden" name="packageTitle" id="packageTitle">
+          <input type="hidden" name="amount" id="amount">
+
+          <div class="selected-strip full" id="selectedStrip">Select a car from the fleet.</div>
+          <button class="primary full" type="submit">Send booking request</button>
+          <p class="form-message full" id="bookingMessage" role="status"></p>
+        </form>
+
+        <div class="tracker-box" id="trackBooking">
+          <h2>Track booking</h2>
+          <form id="trackForm" class="track-form">
+            <input name="bookingId" placeholder="Booking ID, example VRK-20260714-ABC123" required>
+            <button class="secondary" type="submit">Check</button>
+          </form>
+          <div id="trackResult" class="track-result" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="gallery-area" aria-label="Trip gallery">
+        <div class="section-title">
+          <div>
+            <span class="eyebrow">Travel gallery</span>
+            <h2>Fleet trips and updates</h2>
+          </div>
+        </div>
+        <div id="galleryGrid" class="gallery-grid"></div>
+      </section>
+    </main>
+
+    <footer id="siteFooter" class="site-footer" aria-label="Business footer"></footer>
+
+    <div class="booking-modal hidden" id="bookingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="booking-modal-panel">
+        <button class="modal-close" id="modalClose" type="button" aria-label="Close booking popup">x</button>
+        <div class="panel-heading">
+          <span class="eyebrow">Quick booking</span>
+          <h2 id="modalTitle">Send booking request</h2>
+          <p id="modalMessage">Owner will confirm the exact fare and payment details.</p>
+        </div>
+        <form id="modalBookingForm" class="form-grid compact">
+          <label>
+            Customer name
+            <input name="customerName" autocomplete="name" required>
+          </label>
+          <label>
+            Mobile number
+            <input name="phone" autocomplete="tel" required>
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" autocomplete="email">
+          </label>
+          <label>
+            Passengers
+            <input name="passengers" type="number" min="1" value="1" required>
+          </label>
+          <label>
+            Travel date
+            <input name="travelDate" type="date" required>
+          </label>
+          <label>
+            Return date
+            <input name="returnDate" type="date">
+          </label>
+          <label class="full">
+            Pickup location
+            <input name="pickupLocation" required>
+          </label>
+          <label class="full">
+            Drop location
+            <input name="dropLocation">
+          </label>
+          <label class="full">
+            Notes
+            <textarea name="message" rows="3" placeholder="Pickup time, luggage, return plan, special request"></textarea>
+          </label>
+          <input type="hidden" name="bookingType" value="car">
+          <input type="hidden" name="packageId">
+          <input type="hidden" name="packageTitle">
+          <input type="hidden" name="amount">
+          <div class="selected-strip full">Select a car or send a general enquiry.</div>
+          <button class="primary full" type="submit">Send booking request</button>
+          <p class="form-message full" role="status"></p>
+        </form>
+      </div>
+    </div>
+
+    <div class="booking-modal hidden" id="infoModal" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+      <div class="booking-modal-panel info-modal-panel">
+        <button class="modal-close" id="infoClose" type="button" aria-label="Close details popup">x</button>
+        <div class="panel-heading">
+          <span class="eyebrow" id="infoEyebrow">Details</span>
+          <h2 id="infoTitle">Vehicle details</h2>
+          <p id="infoSubtitle"></p>
+        </div>
+        <div id="infoBody" class="info-body"></div>
+        <div class="modal-actions">
+          <button class="primary" id="infoBook" type="button">Book this car</button>
+          <button class="ghost" id="infoCloseSecondary" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/customer.js"></script>
+  </body>
+</html>
