@@ -396,22 +396,66 @@
 
   function amountForItem(item) {
     if (!item) return 0;
-    return kindForItem(item) === "car" ? item.dayRate : item.price;
+    if (kindForItem(item) === "car") {
+      return Number(item.outstationRate || item.localRate || item.dayRate || item.ratePerKm || 0);
+    }
+    return item.price;
   }
 
   function priceForItem(item) {
-    if (kindForItem(item) === "car" && item.dayRate !== undefined) {
-      return `${VRK.money(item.dayRate)} per day / INR ${item.ratePerKm || 0} per km`;
+    if (kindForItem(item) === "car") {
+      const localRate = Number(item.localRate || item.ratePerKm || 0);
+      const outstationRate = Number(item.outstationRate || item.dayRate || 0);
+      const extraKmRate = Number(item.extraKmRate || 0);
+      const parts = [
+        localRate ? `${VRK.money(localRate)} local/km` : "",
+        outstationRate ? `${VRK.money(outstationRate)} outstation/km` : "",
+        extraKmRate ? `${VRK.money(extraKmRate)} extra/km` : ""
+      ].filter(Boolean);
+      return parts.length ? parts.join(" / ") : "Owner confirms fare";
     }
     return `${VRK.money(item.price)} starting price`;
+  }
+
+  function passengerCapacity(item) {
+    const match = String(item && item.seats ? item.seats : "").match(/^\d+/);
+    return match ? Number(match[0]) : 0;
+  }
+
+  function carDetailsForItem(item) {
+    const luggage = Number(item.luggageCapacity || 0);
+    return [
+      item.brand || item.model ? `Brand: ${[item.brand, item.model].filter(Boolean).join(" ")}` : "",
+      item.vehicleNumber ? `Vehicle no: ${item.vehicleNumber}` : "",
+      item.seats ? `Seats: ${item.seats}` : "",
+      luggage ? `Luggage capacity: ${luggage}` : "",
+      item.ac === false ? "Non AC" : "AC",
+      item.fuelType || item.fuel ? `Fuel: ${item.fuelType || item.fuel}` : ""
+    ].filter(Boolean);
+  }
+
+  function carRateDetails(item) {
+    return [
+      Number(item.localRate || item.ratePerKm || 0) ? `Local: ${VRK.money(item.localRate || item.ratePerKm)} per km` : "",
+      Number(item.outstationRate || item.dayRate || 0) ? `Outstation: ${VRK.money(item.outstationRate || item.dayRate)} per km` : "",
+      Number(item.extraKmRate || 0) ? `Extra km: ${VRK.money(item.extraKmRate)}` : "",
+      Number(item.extraHourRate || 0) ? `Extra hour: ${VRK.money(item.extraHourRate)}` : ""
+    ].filter(Boolean);
   }
 
   function detailForItem(item) {
     const kind = kindForItem(item);
     if (kind === "car") {
-      return `${item.category || "Car"} | ${item.seats || 4} seats | ${item.fuel || "Fuel"} | ${
-        item.luggage || "Luggage"
-      }`;
+      const luggage = Number(item.luggageCapacity || 0);
+      return [
+        item.category || "Car",
+        item.seats ? `${item.seats} seats` : "Seats not set",
+        item.ac === false ? "Non AC" : "AC",
+        item.fuelType || item.fuel || "Fuel",
+        luggage ? `${luggage} luggage` : item.luggage || "Luggage"
+      ]
+        .filter(Boolean)
+        .join(" | ");
     }
     if (kind === "tour") {
       return `${item.packageType || "Tour"} | ${item.destination || "Destination"} | ${item.duration || "Duration"}`;
@@ -420,6 +464,15 @@
   }
 
   function tagsForItem(item) {
+    if (kindForItem(item) === "car") {
+      const generated = [
+        item.featured ? "Featured" : "",
+        item.available === false ? "Not available" : "Available",
+        item.brand || "",
+        item.vehicleNumber || ""
+      ].filter(Boolean);
+      return [...generated, ...(item.features || [])];
+    }
     return item.features || item.inclusions || item.highlights || [];
   }
 
@@ -508,8 +561,13 @@
 
   function card(item) {
     const selected = state.selected && state.selected.id === item.id;
+    const kind = kindForItem(item);
+    const unavailable = kind === "car" && item.available === false;
     return `
-      <article class="service-card ${selected ? "selected" : ""}">
+      <article class="service-card ${selected ? "selected" : ""} ${item.featured ? "featured-card" : ""} ${
+      unavailable ? "unavailable-card" : ""
+    }">
+        ${item.featured ? `<span class="card-badge">Featured</span>` : ""}
         ${
           item.image
             ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(titleForItem(item))}" loading="lazy">`
@@ -521,13 +579,15 @@
             <strong>${priceForItem(item)}</strong>
           </div>
           <h3>${VRK.escapeHtml(titleForItem(item))}</h3>
-          <p>${VRK.escapeHtml(item.overview || "Comfortable service with owner-confirmed fare and verified driver.")}</p>
+          <p>${VRK.escapeHtml(item.description || item.overview || "Comfortable service with owner-confirmed fare and verified driver.")}</p>
           <div class="tag-row">
             ${tagsForItem(item).slice(0, 4).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
           </div>
           <div class="card-actions">
             <button class="ghost" data-details="${VRK.escapeHtml(item.id)}" type="button">Details</button>
-            <button class="secondary" data-book="${VRK.escapeHtml(item.id)}" type="button">Book</button>
+            <button class="secondary" data-book="${VRK.escapeHtml(item.id)}" type="button" ${
+      unavailable ? "disabled" : ""
+    }>${unavailable ? "Unavailable" : "Book"}</button>
           </div>
         </div>
       </article>
@@ -552,27 +612,35 @@
 
   function openServiceInfo(item) {
     const service = { ...item, bookingType: item.bookingType || bookingTypeForTab() };
+    const unavailable = kindForItem(service) === "car" && service.available === false;
     state.infoItem = service;
     infoEyebrow.textContent = detailForItem(service);
     infoTitle.textContent = titleForItem(service);
-    infoSubtitle.textContent = service.overview || "Owner will confirm exact fare, vehicle, driver, and payment before trip.";
+    infoSubtitle.textContent =
+      service.description || service.overview || "Owner will confirm exact fare, vehicle, driver, and payment before trip.";
     infoBody.innerHTML = `
       <div class="info-price">
         <span>Starting price</span>
         <strong>${priceForItem(service)}</strong>
       </div>
+      ${kindForItem(service) === "car" ? itemList("Car details", carDetailsForItem(service)) : ""}
+      ${kindForItem(service) === "car" ? itemList("Rate details", carRateDetails(service)) : ""}
       ${itemList("Included", includedForItem(service))}
       ${itemList("Extra charges / excluded", excludedForItem(service))}
       ${itemList("Itinerary", service.itinerary)}
       ${itemList("Terms and conditions", service.terms)}
     `;
     infoBook.classList.remove("hidden");
+    infoBook.disabled = unavailable;
+    infoBook.textContent = unavailable ? "Currently unavailable" : "Book this service";
     infoModal.classList.remove("hidden");
   }
 
   function closeInfoModal() {
     infoModal.classList.add("hidden");
     state.infoItem = null;
+    infoBook.disabled = false;
+    infoBook.textContent = "Book this service";
   }
 
   function renderFooter() {
@@ -606,7 +674,9 @@
   }
 
   function renderCatalog() {
-    const items = itemByTab();
+    const items = itemByTab()
+      .slice()
+      .sort((a, b) => Number(b.featured || false) - Number(a.featured || false));
     if (!items.length) {
       catalog.innerHTML = `<div class="empty-state">Owner has not published active items in this section yet.</div>`;
       return;
@@ -647,7 +717,7 @@
     state.selected = item || null;
     document.querySelectorAll(".selected-strip").forEach((strip) => {
       strip.textContent = state.selected
-        ? `${titleForItem(state.selected)} selected - ${priceForItem(state.selected)}`
+        ? `${titleForItem(state.selected)} selected - ${detailForItem(state.selected)} - ${priceForItem(state.selected)}`
         : "General travel enquiry selected.";
     });
     document.querySelectorAll("form").forEach(updateFormSelection);
@@ -662,6 +732,19 @@
     form.elements.packageId.value = state.selected ? state.selected.id : "";
     form.elements.packageTitle.value = state.selected ? titleForItem(state.selected) : "General travel enquiry";
     form.elements.amount.value = state.selected ? amountForItem(state.selected) : 0;
+    if (form.elements.passengers) {
+      const capacity = type === "car" ? passengerCapacity(state.selected) : 0;
+      if (capacity) {
+        form.elements.passengers.max = String(capacity);
+        form.elements.passengers.placeholder = `Max ${capacity} passengers`;
+        if (Number(form.elements.passengers.value || 1) > capacity) {
+          form.elements.passengers.value = String(capacity);
+        }
+      } else {
+        form.elements.passengers.removeAttribute("max");
+        form.elements.passengers.placeholder = "";
+      }
+    }
   }
 
   function openBookingModal() {
@@ -916,7 +999,9 @@
     if (selectButton || bookButton) {
       const id = (selectButton || bookButton).dataset.select || (selectButton || bookButton).dataset.book;
       const item = itemByTab().find((entry) => entry.id === id);
-      if (item) setSelected({ ...item, bookingType: bookingTypeForTab() }, Boolean(bookButton));
+      if (item && !(bookButton && bookingTypeForTab() === "car" && item.available === false)) {
+        setSelected({ ...item, bookingType: bookingTypeForTab() }, Boolean(bookButton));
+      }
     }
 
     if (detailsButton) {
@@ -980,6 +1065,7 @@
   infoBook.addEventListener("click", () => {
     if (!state.infoItem) return;
     const item = state.infoItem;
+    if (kindForItem(item) === "car" && item.available === false) return;
     closeInfoModal();
     setSelected(item, true);
   });
