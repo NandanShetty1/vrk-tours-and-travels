@@ -520,6 +520,9 @@
     sections[section].querySelectorAll("[data-archive]").forEach((button) => {
       button.addEventListener("click", () => archiveItem(section, button.dataset.archive));
     });
+    sections[section].querySelectorAll("[data-show]").forEach((button) => {
+      button.addEventListener("click", () => showItem(section, button.dataset.show));
+    });
     sections[section].querySelectorAll("[data-delete]").forEach((button) => {
       button.addEventListener("click", () => deleteItem(section, button.dataset.delete));
     });
@@ -574,7 +577,11 @@
         </div>
         <div class="row-actions">
           <button class="secondary" data-edit="${VRK.escapeHtml(item.id)}" type="button">Edit</button>
-          <button class="ghost" data-archive="${VRK.escapeHtml(item.id)}" type="button">Hide</button>
+          ${
+            item.active
+              ? `<button class="ghost" data-archive="${VRK.escapeHtml(item.id)}" type="button">Hide</button>`
+              : `<button class="ghost" data-show="${VRK.escapeHtml(item.id)}" type="button">Show</button>`
+          }
           <button class="ghost danger-button" data-delete="${VRK.escapeHtml(item.id)}" type="button">Delete</button>
         </div>
       </article>
@@ -645,6 +652,15 @@
     const meta = collectionMeta(section);
     if (!confirm("Hide this item from customers?")) return;
     await VRK.request(`/api/admin/${meta.archive}/${itemId}/archive`, {
+      method: "POST",
+      headers: await adminHeaders()
+    });
+    await load();
+  }
+
+  async function showItem(section, itemId) {
+    const meta = collectionMeta(section);
+    await VRK.request(`/api/admin/${meta.archive}/${itemId}/show`, {
       method: "POST",
       headers: await adminHeaders()
     });
