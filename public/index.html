@@ -18,10 +18,6 @@
       <nav class="topnav customer-nav" aria-label="Customer">
         <a href="#bookingSection">Book</a>
         <a href="#trackBooking">Track</a>
-        <button class="account-button" id="accountButton" type="button" aria-label="Open customer account">
-          <span class="account-avatar" id="accountAvatar">?</span>
-          <span id="accountButtonLabel">Sign in</span>
-        </button>
       </nav>
     </header>
 
@@ -176,65 +172,6 @@
           <button class="primary full" type="submit">Send booking request</button>
           <p class="form-message full" role="status"></p>
         </form>
-      </div>
-    </div>
-
-    <div class="booking-modal hidden" id="accountModal" role="dialog" aria-modal="true" aria-labelledby="customer-account-title">
-      <div class="booking-modal-panel account-modal-panel">
-        <button class="modal-close" id="accountClose" type="button" aria-label="Close customer account">x</button>
-        <section class="customer-account" id="customerAccount" aria-labelledby="customer-account-title">
-          <div class="account-copy">
-            <span class="eyebrow">Customer account</span>
-            <h2 id="customer-account-title">Login or create account</h2>
-            <p id="customerAccountStatus">Use mobile number or email so your booking form is filled correctly.</p>
-          </div>
-          <div class="account-panel">
-            <div class="segmented auth-tabs" role="tablist" aria-label="Account mode">
-              <button class="active" data-auth-mode="login" type="button">Login</button>
-              <button data-auth-mode="signup" type="button">Create account</button>
-            </div>
-            <form id="customerLoginForm" class="form-grid compact">
-              <div class="segmented auth-method-tabs full" role="tablist" aria-label="Login method">
-                <button class="active" data-auth-method="phone" type="button">Mobile OTP</button>
-                <button data-auth-method="email" type="button">Email link</button>
-                <button data-auth-method="google" type="button">Google</button>
-              </div>
-              <label class="full auth-create-field">
-                Customer name
-                <input name="customerName" autocomplete="name">
-              </label>
-              <label data-auth-field="phone">
-                Country
-                <select name="countryCode" aria-label="Country code">
-                  <option value="+91">India +91</option>
-                </select>
-              </label>
-              <label data-auth-field="phone">
-                India mobile number
-                <input name="phone" autocomplete="tel" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}" placeholder="9876543210">
-              </label>
-              <label class="full hidden" data-auth-field="email">
-                Email
-                <input name="email" type="email" autocomplete="email">
-              </label>
-              <div class="auth-action-grid full">
-                <button class="primary full" id="authContinueButton" data-auth-action="continue" type="button">Login with mobile OTP</button>
-              </div>
-              <label class="full hidden" id="otpPanel">
-                Enter mobile OTP
-                <input name="otpCode" inputmode="numeric" autocomplete="one-time-code">
-              </label>
-              <button class="primary full hidden" id="verifyOtpButton" type="button">Verify OTP</button>
-              <div id="recaptchaContainer" class="recaptcha-box full"></div>
-              <p class="form-message full" id="customerLoginMessage" role="status"></p>
-            </form>
-            <div class="provider-login-row hidden" aria-label="Social sign in options">
-              <button class="ghost" data-auth-provider="Google" type="button">Google</button>
-            </div>
-            <p class="auth-note">Choose the same mobile number or email used while creating the account. New customers must use Create account first.</p>
-            <div id="customerAccountSummary" class="account-summary hidden"></div>
-          </div>
-        </section>
       </div>
     </div>
 
