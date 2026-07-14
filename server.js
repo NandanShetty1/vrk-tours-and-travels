@@ -26,7 +26,9 @@ const MIME_TYPES = {
 const sseClients = new Set();
 let writeQueue = Promise.resolve();
 let pgPool;
+let firebaseAdminApp;
 let firebaseAdminAuth;
+let firebaseFirestore;
 
 function now() {
   return new Date().toISOString();
@@ -180,16 +182,16 @@ function firebaseAdminConfigured() {
   return Boolean(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
 }
 
-function getFirebaseAuth() {
-  if (firebaseAdminAuth) return firebaseAdminAuth;
+function getFirebaseAdminApp() {
+  if (firebaseAdminApp) return firebaseAdminApp;
   if (!firebaseAdminConfigured()) {
     const err = new Error("Firebase Admin credentials are not configured");
     err.status = 503;
     throw err;
   }
   const { cert, getApps, initializeApp } = require("firebase-admin/app");
-  const { getAuth } = require("firebase-admin/auth");
-  if (!getApps().length) {
+  firebaseAdminApp =
+    getApps()[0] ||
     initializeApp({
       credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
@@ -197,20 +199,99 @@ function getFirebaseAuth() {
         privateKey: String(process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n")
       })
     });
-  }
-  firebaseAdminAuth = getAuth();
+  return firebaseAdminApp;
+}
+
+function getFirebaseAuth() {
+  if (firebaseAdminAuth) return firebaseAdminAuth;
+  const { getAuth } = require("firebase-admin/auth");
+  firebaseAdminAuth = getAuth(getFirebaseAdminApp());
   return firebaseAdminAuth;
 }
 
-async function verifyCustomerToken(req) {
+function getFirestoreDb() {
+  if (firebaseFirestore) return firebaseFirestore;
+  const { getFirestore } = require("firebase-admin/firestore");
+  firebaseFirestore = getFirestore(getFirebaseAdminApp());
+  return firebaseFirestore;
+}
+
+async function verifyFirebaseToken(req, label) {
   const header = String(req.headers.authorization || "");
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) {
-    const err = new Error("Customer login token is required");
+    const err = new Error(`${label || "Firebase"} token is required`);
     err.status = 401;
     throw err;
   }
   return getFirebaseAuth().verifyIdToken(match[1]);
+}
+
+async function verifyCustomerToken(req) {
+  return verifyFirebaseToken(req, "Customer login");
+}
+
+async function firestoreAdminProfile(decoded) {
+  const email = String(decoded.email || "").trim().toLowerCase();
+  const db = getFirestoreDb();
+  const collection = db.collection("adminUsers");
+  let snapshot = await collection.doc(decoded.uid).get();
+  if (!snapshot.exists && email) {
+    const matches = await collection.where("email", "==", email).limit(1).get();
+    if (!matches.empty) snapshot = matches.docs[0];
+  }
+  if (!snapshot.exists) {
+    const err = new Error("This Firebase user is not allowed for admin. Add this user in Firestore adminUsers.");
+    err.status = 403;
+    throw err;
+  }
+  const profile = snapshot.data() || {};
+  if (profile.active === false) {
+    const err = new Error("This admin account is disabled.");
+    err.status = 403;
+    throw err;
+  }
+  const role = String(profile.role || "admin").toLowerCase();
+  if (!["owner", "admin"].includes(role)) {
+    const err = new Error("This user does not have admin role.");
+    err.status = 403;
+    throw err;
+  }
+  return {
+    id: snapshot.id,
+    uid: decoded.uid,
+    email: email || String(profile.email || "").trim(),
+    name: String(profile.name || decoded.name || email || "Admin").trim(),
+    role
+  };
+}
+
+async function verifyAdminRequest(req, store) {
+  if (firebaseAdminConfigured()) {
+    const decoded = await verifyFirebaseToken(req, "Admin login");
+    req.admin = await firestoreAdminProfile(decoded);
+    return req.admin;
+  }
+
+  const pin = req.headers["x-admin-pin"];
+  if (pin && pin === store.business.adminPin) {
+    req.admin = { role: "owner", name: "Legacy PIN admin" };
+    return req.admin;
+  }
+
+  const err = new Error("Admin email login is not configured, and legacy PIN is invalid");
+  err.status = 401;
+  throw err;
+}
+
+async function requireAdmin(req, res, store) {
+  try {
+    await verifyAdminRequest(req, store);
+    return true;
+  } catch (error) {
+    sendError(res, error.status || 401, error.message || "Admin login required");
+    return false;
+  }
 }
 
 function customerPublic(customer) {
@@ -320,11 +401,6 @@ function adminData(store) {
     gallery: store.gallery,
     popupSettings: store.popupSettings
   };
-}
-
-function isAdmin(req, store) {
-  const pin = req.headers["x-admin-pin"];
-  return Boolean(pin && pin === store.business.adminPin);
 }
 
 function findDriver(store, driverId, accessCode) {
@@ -634,18 +710,27 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/admin/login") {
     const body = await readBody(req);
+    if (firebaseAdminConfigured()) {
+      return sendError(res, 410, "PIN login is disabled. Use admin email and password.");
+    }
     sendJson(res, 200, { ok: body.pin === store.business.adminPin });
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/session") {
+    if (!(await requireAdmin(req, res, store))) return;
+    sendJson(res, 200, { ok: true, admin: req.admin });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/admin-data") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     sendJson(res, 200, adminData(store));
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/business") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
     store.business = {
       ...store.business,
@@ -663,9 +748,6 @@ async function handleApi(req, res) {
       invoicePrefix: String(body.invoicePrefix || store.business.invoicePrefix || "VRK").trim(),
       terms: normalizeArrayText(body.terms)
     };
-    if (String(body.adminPin || "").trim()) {
-      store.business.adminPin = String(body.adminPin).trim();
-    }
     await saveStore(store);
     sendJson(res, 200, { business: store.business });
     return;
@@ -731,7 +813,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/cars") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
     requireFields(body, ["name", "category", "seats"]);
     const item = upsertById(store.cars, {
@@ -758,7 +840,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/tour-packages") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
     requireFields(body, ["title", "destination", "duration", "price"]);
     const item = upsertById(store.tourPackages, {
@@ -784,7 +866,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/day-packages") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
     requireFields(body, ["title", "place", "hours", "price"]);
     const item = upsertById(store.dayPackages, {
@@ -809,7 +891,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/drivers") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
     requireFields(body, ["name", "phone", "accessCode"]);
     const item = upsertById(store.drivers, {
@@ -829,7 +911,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/banners") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     normalizeStore(store);
     const body = await readBody(req);
     const prompt = String(body.prompt || "").trim();
@@ -859,7 +941,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/gallery") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     normalizeStore(store);
     const body = await readBody(req);
     requireFields(body, ["title", "mediaUrl"]);
@@ -884,7 +966,7 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/admin/popup") {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     normalizeStore(store);
     const body = await readBody(req);
     store.popupSettings = {
@@ -904,7 +986,7 @@ async function handleApi(req, res) {
     /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/archive$/
   );
   if (req.method === "POST" && archiveMatch) {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const [, collectionName, itemId] = archiveMatch;
     const item = store[collectionName].find((entry) => entry.id === itemId);
     if (!item) return sendError(res, 404, "Item not found");
@@ -917,7 +999,7 @@ async function handleApi(req, res) {
 
   const assignMatch = url.pathname.match(/^\/api\/admin\/bookings\/([^/]+)\/assign$/);
   if (req.method === "POST" && assignMatch) {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
     const booking = store.bookings.find((item) => item.id === assignMatch[1]);
     if (!booking) return sendError(res, 404, "Booking not found");
@@ -954,7 +1036,7 @@ async function handleApi(req, res) {
 
   const adminStatusMatch = url.pathname.match(/^\/api\/admin\/bookings\/([^/]+)\/status$/);
   if (req.method === "POST" && adminStatusMatch) {
-    if (!isAdmin(req, store)) return sendError(res, 401, "Invalid admin PIN");
+    if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
     const booking = store.bookings.find((item) => item.id === adminStatusMatch[1]);
     if (!booking) return sendError(res, 404, "Booking not found");
@@ -1069,7 +1151,11 @@ async function start() {
   const displayHost = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;
   console.log(`VRK Tours and Travels is running at http://${displayHost}:${port}`);
   console.log(`Data directory: ${DATA_DIR}`);
-  console.log("Admin PIN: 1234");
+  console.log(
+    firebaseAdminConfigured()
+      ? "Admin portal uses Firebase email/password login with Firestore adminUsers permission."
+      : "Admin portal can use legacy PIN only when Firebase Admin credentials are not configured."
+  );
   console.log("Owner can add cars, packages, drivers, prices, and payment details from admin portal.");
 }
 
