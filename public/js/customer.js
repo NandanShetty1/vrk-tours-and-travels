@@ -79,7 +79,7 @@
     renderCustomerAccount();
     if (previous && customerLoginForm.elements) {
       customerLoginForm.elements.customerName.value = previous.customerName || "";
-      customerLoginForm.elements.phone.value = previous.phone || "";
+      customerLoginForm.elements.phone.value = localIndiaPhone(previous.phone);
       customerLoginForm.elements.email.value = previous.email || "";
     }
   }
@@ -101,11 +101,64 @@
     VRK.setMessage(customerLoginMessage, message, tone || "");
   }
 
-  function normalizePhone(phone) {
-    const trimmed = String(phone || "").replace(/\s+/g, "");
+  function localIndiaPhone(phone) {
+    return String(phone || "").replace(/^\+91/, "").replace(/\D/g, "").slice(-10);
+  }
+
+  function normalizePhone(phone, countryCode) {
+    const code = String(countryCode || "+91").trim() || "+91";
+    const trimmed = String(phone || "").replace(/\D/g, "");
     if (!trimmed) return "";
-    if (trimmed.startsWith("+")) return trimmed;
-    return `+91${trimmed.replace(/^0+/, "")}`;
+    const local = trimmed.length > 10 ? trimmed.slice(-10) : trimmed.replace(/^0+/, "");
+    return `${code}${local}`;
+  }
+
+  function friendlyAuthError(error) {
+    const code = error && error.code;
+    const message = String((error && error.message) || "Login failed. Please try again.");
+    if (code === "auth/operation-not-allowed") {
+      return "This login provider is not enabled in Firebase Authentication.";
+    }
+    if (code === "auth/unauthorized-domain") {
+      return "Add this website domain in Firebase Authentication authorized domains.";
+    }
+    if (code === "auth/popup-blocked") {
+      return "Popup was blocked. Allow popups for this website and try again.";
+    }
+    if (code === "auth/popup-closed-by-user") {
+      return "Login popup was closed before completion.";
+    }
+    return message;
+  }
+
+  function customerNameValue() {
+    return String(customerLoginForm.elements.customerName.value || "").trim();
+  }
+
+  function requireCreateName() {
+    if (state.auth.mode !== "create") return true;
+    if (customerNameValue()) return true;
+    setAuthMessage("Enter customer name to create an account.", "danger");
+    customerLoginForm.elements.customerName.focus();
+    return false;
+  }
+
+  function applyAuthMode(mode) {
+    const isSignup = mode === "create";
+    state.auth.mode = isSignup ? "create" : "login";
+    authModeButtons.forEach((item) => {
+      const itemMode = item.dataset.authMode === "signup" ? "create" : "login";
+      item.classList.toggle("active", itemMode === state.auth.mode);
+    });
+    document.querySelector("#customer-account-title").textContent = isSignup
+      ? "Create customer account"
+      : "Login to customer account";
+    customerAccountStatus.textContent = isSignup
+      ? "Create account with verified mobile OTP, email link, or Google."
+      : "Login with verified mobile OTP, email link, or Google.";
+    customerLoginForm.elements.customerName.required = isSignup;
+    document.querySelector('[data-auth-action="phone"]').textContent = isSignup ? "Create with mobile OTP" : "Login with mobile OTP";
+    document.querySelector('[data-auth-action="email"]').textContent = isSignup ? "Create with email link" : "Login with email link";
   }
 
   async function firebaseIdToken() {
@@ -142,6 +195,10 @@
     });
     const result = await response.json();
     if (!response.ok) {
+      clearCustomerProfile();
+      if (state.auth.modules && state.auth.instance) {
+        await state.auth.modules.signOut(state.auth.instance);
+      }
       throw new Error(result.error || "Customer login failed");
     }
     saveCustomerProfile(result.customer);
@@ -192,10 +249,16 @@
       const pending = JSON.parse(localStorage.getItem("vrkEmailLogin") || "{}");
       const email = pending.email || window.prompt("Enter your email to complete sign in");
       if (email) {
-        const credential = await authModule.signInWithEmailLink(auth, email, window.location.href);
-        localStorage.removeItem("vrkEmailLogin");
-        await finishVerifiedCustomer(credential.user, pending.mode || "login", pending);
-        window.history.replaceState({}, document.title, window.location.pathname);
+        try {
+          const credential = await authModule.signInWithEmailLink(auth, email, window.location.href);
+          localStorage.removeItem("vrkEmailLogin");
+          await finishVerifiedCustomer(credential.user, pending.mode || "login", pending);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error) {
+          localStorage.removeItem("vrkEmailLogin");
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setAuthMessage(friendlyAuthError(error), "danger");
+        }
       }
     }
   }
@@ -644,11 +707,12 @@
       setAuthMessage("Firebase keys are not configured yet. Add them in Render first.", "danger");
       return;
     }
+    if (!requireCreateName()) return;
     const modules = state.auth.modules;
     const form = VRK.formToObject(customerLoginForm);
-    const phone = normalizePhone(form.phone);
-    if (!phone) {
-      setAuthMessage("Enter mobile number with country code.", "danger");
+    const phone = normalizePhone(form.phone, form.countryCode);
+    if (!/^\+91[6-9]\d{9}$/.test(phone)) {
+      setAuthMessage("Enter a valid 10-digit India mobile number.", "danger");
       return;
     }
     setAuthMessage("Sending OTP...", "active");
@@ -682,7 +746,7 @@
     const credential = await state.auth.confirmationResult.confirm(code);
     await finishVerifiedCustomer(credential.user, state.auth.mode, {
       displayName: form.customerName,
-      phone: normalizePhone(form.phone),
+      phone: normalizePhone(form.phone, form.countryCode),
       email: form.email,
       provider: "phone"
     });
@@ -693,6 +757,7 @@
       setAuthMessage("Firebase keys are not configured yet. Add them in Render first.", "danger");
       return;
     }
+    if (!requireCreateName()) return;
     const modules = state.auth.modules;
     const form = VRK.formToObject(customerLoginForm);
     const email = String(form.email || "").trim();
@@ -710,7 +775,7 @@
         mode: state.auth.mode,
         email,
         displayName: form.customerName,
-        phone: normalizePhone(form.phone),
+        phone: normalizePhone(form.phone, form.countryCode),
         provider: "emailLink"
       })
     );
@@ -722,6 +787,7 @@
       setAuthMessage("Firebase keys are not configured yet. Add them in Render first.", "danger");
       return;
     }
+    if (!requireCreateName()) return;
     const modules = state.auth.modules;
     const provider =
       providerName === "Google"
@@ -732,7 +798,7 @@
     const form = VRK.formToObject(customerLoginForm);
     await finishVerifiedCustomer(credential.user, state.auth.mode, {
       displayName: form.customerName || credential.user.displayName,
-      phone: normalizePhone(form.phone),
+      phone: normalizePhone(form.phone, form.countryCode),
       email: form.email || credential.user.email,
       provider: providerName
     });
@@ -767,13 +833,7 @@
 
   authModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      authModeButtons.forEach((item) => item.classList.toggle("active", item === button));
-      const isSignup = button.dataset.authMode === "signup";
-      state.auth.mode = isSignup ? "create" : "login";
-      document.querySelector("#customer-account-title").textContent = isSignup ? "Create customer account" : "Login to customer account";
-      customerAccountStatus.textContent = isSignup
-        ? "Create account with verified mobile or email before booking."
-        : "Login with verified mobile, email, or social account.";
+      applyAuthMode(button.dataset.authMode === "signup" ? "create" : "login");
     });
   });
 
@@ -809,11 +869,13 @@
     if (authAction) {
       const action = authAction.dataset.authAction;
       const task = action === "email" ? sendEmailLink() : sendPhoneOtp();
-      task.catch((error) => setAuthMessage(error.message, "danger"));
+      task.catch((error) => setAuthMessage(friendlyAuthError(error), "danger"));
     }
 
     if (providerButton) {
-      signInWithProvider(providerButton.dataset.authProvider).catch((error) => setAuthMessage(error.message, "danger"));
+      signInWithProvider(providerButton.dataset.authProvider).catch((error) =>
+        setAuthMessage(friendlyAuthError(error), "danger")
+      );
     }
 
     if (customerLogout) logoutCustomer().catch((error) => setAuthMessage(error.message, "danger"));
@@ -821,7 +883,7 @@
   });
 
   verifyOtpButton.addEventListener("click", () => {
-    verifyPhoneOtp().catch((error) => setAuthMessage(error.message, "danger"));
+    verifyPhoneOtp().catch((error) => setAuthMessage(friendlyAuthError(error), "danger"));
   });
 
   heroCarousel.addEventListener("keydown", (event) => {
@@ -1009,6 +1071,7 @@
 
   bindBookingForm(bookingForm, bookingMessage);
   bindBookingForm(modalBookingForm);
+  applyAuthMode("login");
   state.customerProfile = loadCustomerProfile();
   renderCustomerAccount();
   setupFirebaseAuth().catch((error) => {
