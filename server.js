@@ -537,6 +537,24 @@ function upsertById(collection, item) {
   return collection[index];
 }
 
+function itemBookingUsage(store, collectionName, itemId) {
+  if (collectionName === "cars") {
+    return store.bookings.filter(
+      (booking) => booking.assignedCarId === itemId || (booking.bookingType === "car" && booking.packageId === itemId)
+    );
+  }
+  if (collectionName === "tourPackages") {
+    return store.bookings.filter((booking) => booking.bookingType === "tour" && booking.packageId === itemId);
+  }
+  if (collectionName === "dayPackages") {
+    return store.bookings.filter((booking) => booking.bookingType === "day" && booking.packageId === itemId);
+  }
+  if (collectionName === "drivers") {
+    return store.bookings.filter((booking) => booking.assignedDriverId === itemId);
+  }
+  return [];
+}
+
 function createBooking(store, payload) {
   requireFields(payload, ["customerName", "phone", "bookingType", "travelDate", "pickupLocation"]);
   const bookingType = String(payload.bookingType);
@@ -1056,6 +1074,29 @@ async function handleApi(req, res) {
     item.updatedAt = now();
     await saveStore(store);
     sendJson(res, 200, { item });
+    return;
+  }
+
+  const deleteMatch = url.pathname.match(
+    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/delete$/
+  );
+  if (req.method === "DELETE" && deleteMatch) {
+    if (!(await requireAdmin(req, res, store))) return;
+    const [, collectionName, itemId] = deleteMatch;
+    const collection = store[collectionName];
+    const index = collection.findIndex((entry) => entry.id === itemId);
+    if (index === -1) return sendError(res, 404, "Item not found");
+    const usedBookings = itemBookingUsage(store, collectionName, itemId);
+    if (usedBookings.length) {
+      return sendError(
+        res,
+        409,
+        `This item is used in ${usedBookings.length} booking(s). Use Hide instead to keep booking history and bills safe.`
+      );
+    }
+    const [deleted] = collection.splice(index, 1);
+    await saveStore(store);
+    sendJson(res, 200, { ok: true, deleted });
     return;
   }
 
