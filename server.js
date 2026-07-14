@@ -673,20 +673,6 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/bookings") {
     const body = await readBody(req);
-    let verifiedCustomer = null;
-    if (firebaseClientConfig().configured && firebaseAdminConfigured()) {
-      const decoded = await verifyCustomerToken(req);
-      normalizeStore(store);
-      verifiedCustomer = store.customers.find((item) => item.uid === decoded.uid && !item.deletedAt);
-      if (!verifiedCustomer) {
-        return sendError(res, 401, "Please login or create a verified customer account before booking");
-      }
-      body.customerUid = verifiedCustomer.uid;
-      body.customerAccountId = verifiedCustomer.id;
-      body.customerName = verifiedCustomer.name || body.customerName;
-      body.phone = verifiedCustomer.phone || body.phone;
-      body.email = verifiedCustomer.email || body.email;
-    }
     const booking = createBooking(store, body);
     await saveStore(store);
     sendJson(res, 201, { booking: bookingSummary(store, booking) });
