@@ -74,6 +74,7 @@ async function main() {
     const base = await wait();
     const pageStatuses = {
       customer: await checkPage(base, "/"),
+      cars: await checkPage(base, "/cars.html"),
       admin: await checkPage(base, "/admin.html"),
       driver: await checkPage(base, "/driver.html"),
       bill: await checkPage(base, "/bill.html"),
