@@ -116,6 +116,11 @@ img {
   color: var(--ink);
 }
 
+.topnav a.active {
+  background: var(--ink);
+  color: #fff;
+}
+
 .account-button {
   display: inline-flex;
   align-items: center;
@@ -713,6 +718,16 @@ textarea:focus {
   gap: 6px;
 }
 
+.shelf-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  border-bottom: 2px solid var(--primary);
+  color: var(--primary-dark);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
 .shelf-controls button {
   display: grid;
   place-items: center;
@@ -747,6 +762,24 @@ textarea:focus {
 .catalog-track::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(97, 112, 103, 0.35);
+}
+
+.fleet-page .catalog-slider {
+  overflow: visible;
+}
+
+.fleet-page .catalog-track {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(282px, 1fr));
+  overflow: visible;
+}
+
+.fleet-page .catalog-card {
+  flex: 1 1 auto;
+}
+
+.fleet-page .shelf-controls {
+  display: none;
 }
 
 .gallery-grid {
@@ -856,6 +889,7 @@ textarea:focus {
 .image-placeholder {
   display: grid;
   place-items: center;
+  gap: 8px;
   width: 100%;
   aspect-ratio: 16 / 10;
   max-height: 220px;
@@ -863,6 +897,12 @@ textarea:focus {
   color: #fff;
   font-weight: 900;
   text-align: center;
+}
+
+.image-placeholder small {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .service-body {
@@ -883,6 +923,36 @@ textarea:focus {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.service-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.availability-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.availability-pill.good {
+  background: rgba(21, 128, 61, 0.12);
+  color: var(--good);
+}
+
+.availability-pill.warn {
+  background: rgba(183, 121, 31, 0.16);
+  color: var(--gold);
 }
 
 .card-actions {
@@ -931,6 +1001,38 @@ textarea:focus {
 .service-spec-grid b {
   color: var(--ink);
   font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.car-rate-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.car-rate-strip span {
+  min-height: 58px;
+  padding: 9px 10px;
+  border: 1px solid rgba(194, 65, 12, 0.16);
+  border-radius: 8px;
+  background: rgba(194, 65, 12, 0.07);
+}
+
+.car-rate-strip small,
+.car-rate-strip b {
+  display: block;
+}
+
+.car-rate-strip small {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.car-rate-strip b {
+  color: var(--accent);
+  font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
 
@@ -1668,6 +1770,7 @@ textarea:focus {
   .booking-detail-grid,
   .booking-ops,
   .checklist-grid,
+  .car-rate-strip,
   .metric-grid,
   .ticket-grid,
   .ticket-grid.two,
