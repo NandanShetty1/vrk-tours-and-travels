@@ -946,21 +946,35 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/admin/tour-packages") {
     if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
-    requireFields(body, ["title", "destination", "duration", "price"]);
+    const days = parseInteger(body.days || body.numberOfDays);
+    const nights = parseInteger(body.nights || body.numberOfNights);
+    const destinations = String(body.destinations || body.destination || "").trim();
+    const duration = String(
+      body.duration || (days ? `${days} days${nights ? ` / ${nights} nights` : ""}` : "")
+    ).trim();
+    requireFields({ ...body, destination: destinations, duration }, ["title", "destination", "duration", "price"]);
     const item = upsertById(store.tourPackages, {
       id: body.id || id("TOUR"),
       title: String(body.title).trim(),
       packageType: String(body.packageType || "").trim(),
-      destination: String(body.destination).trim(),
-      duration: String(body.duration).trim(),
-      price: Number(body.price || 0),
+      days,
+      nights,
+      startingPlace: String(body.startingPlace || "").trim(),
+      destinations,
+      destination: destinations,
+      duration,
+      suitableVehicles: String(body.suitableVehicles || "").trim(),
+      price: parseMoney(body.price),
+      driverAllowance: parseMoney(body.driverAllowance),
+      nightAllowance: parseMoney(body.nightAllowance),
+      tollParkingInfo: String(body.tollParkingInfo || body.tollParking || "").trim(),
       image: String(body.image || "").trim(),
       overview: String(body.overview || "").trim(),
       inclusions: normalizeArrayText(body.inclusions),
       exclusions: normalizeArrayText(body.exclusions),
       itinerary: normalizeArrayText(body.itinerary),
       terms: normalizeArrayText(body.terms),
-      active: body.active !== false,
+      active: flagValue(body.active, true),
       createdAt: body.createdAt || now(),
       updatedAt: now()
     });
