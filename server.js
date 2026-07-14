@@ -1077,6 +1077,21 @@ async function handleApi(req, res) {
     return;
   }
 
+  const showMatch = url.pathname.match(
+    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/show$/
+  );
+  if (req.method === "POST" && showMatch) {
+    if (!(await requireAdmin(req, res, store))) return;
+    const [, collectionName, itemId] = showMatch;
+    const item = store[collectionName].find((entry) => entry.id === itemId);
+    if (!item) return sendError(res, 404, "Item not found");
+    item.active = true;
+    item.updatedAt = now();
+    await saveStore(store);
+    sendJson(res, 200, { item });
+    return;
+  }
+
   const deleteMatch = url.pathname.match(
     /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/delete$/
   );
