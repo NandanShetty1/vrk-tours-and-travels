@@ -1005,14 +1005,16 @@ textarea:focus {
 }
 
 .car-rate-strip,
-.package-price-strip {
+.package-price-strip,
+.tour-plan-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
 .car-rate-strip span,
-.package-price-strip span {
+.package-price-strip span,
+.tour-plan-strip span {
   min-height: 58px;
   padding: 9px 10px;
   border: 1px solid rgba(194, 65, 12, 0.16);
@@ -1023,12 +1025,15 @@ textarea:focus {
 .car-rate-strip small,
 .car-rate-strip b,
 .package-price-strip small,
-.package-price-strip b {
+.package-price-strip b,
+.tour-plan-strip small,
+.tour-plan-strip b {
   display: block;
 }
 
 .car-rate-strip small,
-.package-price-strip small {
+.package-price-strip small,
+.tour-plan-strip small {
   margin-bottom: 4px;
   color: var(--muted);
   font-size: 0.72rem;
@@ -1036,7 +1041,8 @@ textarea:focus {
 }
 
 .car-rate-strip b,
-.package-price-strip b {
+.package-price-strip b,
+.tour-plan-strip b {
   color: var(--accent);
   font-size: 0.9rem;
   overflow-wrap: anywhere;
@@ -1823,6 +1829,7 @@ textarea:focus {
   .checklist-grid,
   .car-rate-strip,
   .package-price-strip,
+  .tour-plan-strip,
   .metric-grid,
   .ticket-grid,
   .ticket-grid.two,
