@@ -51,7 +51,9 @@ async function request(base, route, options = {}) {
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
   if (!response.ok) {
-    throw new Error(data.error || `${route} failed with ${response.status}`);
+    const error = new Error(data.error || `${route} failed with ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   return data;
 }
@@ -139,6 +141,33 @@ async function main() {
       })
     });
 
+    const tempCarResult = await request(base, "/api/admin/cars", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        name: "Delete Test 1",
+        brand: "Test",
+        model: "Local",
+        vehicleNumber: "KA09ZZ9999",
+        category: "Sedan",
+        seats: "4+1",
+        luggageCapacity: 1,
+        ac: true,
+        fuelType: "Petrol",
+        localRate: 10,
+        outstationRate: 12,
+        extraKmRate: 14,
+        extraHourRate: 100,
+        available: true,
+        active: true
+      })
+    });
+
+    const deletedTempCar = await request(base, `/api/admin/cars/${tempCarResult.item.id}/delete`, {
+      method: "DELETE",
+      headers: { "X-Admin-Pin": "1234" }
+    });
+
     const publicAfterSetup = await request(base, "/api/public-data");
 
     const created = await request(base, "/api/bookings", {
@@ -220,6 +249,15 @@ async function main() {
 
     const tracked = await request(base, `/api/bookings/${created.booking.id}`);
     const bill = await request(base, `/api/bill/${created.booking.id}`);
+    let deleteBookedCarStatus = 0;
+    try {
+      await request(base, `/api/admin/cars/${carResult.item.id}/delete`, {
+        method: "DELETE",
+        headers: { "X-Admin-Pin": "1234" }
+      });
+    } catch (error) {
+      deleteBookedCarStatus = error.status || 0;
+    }
 
     console.log(
       JSON.stringify(
@@ -229,6 +267,8 @@ async function main() {
           initialPublicCars: publicEmpty.cars.length,
           publicCarsAfterOwnerSetup: publicAfterSetup.cars.length,
           adminLogin: adminLogin.ok,
+          deletedUnusedCar: deletedTempCar.ok,
+          deleteBookedCarStatus,
           bookingId: created.booking.id,
           ownerConfirmedAmount: confirmed.booking.amount,
           paymentStatusAfterCustomer: paid.booking.paymentStatus,
