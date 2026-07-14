@@ -4,8 +4,8 @@ The customer website is prepared for real verified login. Customers cannot be tr
 
 ## What Works After Setup
 
-- New customer clicks the account icon, chooses Create account, verifies mobile OTP/email/social login, then account is created.
-- Existing customer clicks Login and verifies again.
+- New customer clicks the account icon, chooses Create account, selects Mobile OTP, Email link, or Google, verifies, then account is created.
+- Existing customer clicks Login and uses the same mobile number, email, or Google account used during account creation.
 - Create account requires customer name plus one verified login method.
 - If an existing customer clicks Create account, the website shows: "You already have an account. Please login."
 - If a new customer clicks Login before creating an account, the website shows: "No customer account found. Please create an account first."
@@ -13,6 +13,7 @@ The customer website is prepared for real verified login. Customers cannot be tr
 - Customer can delete their VRK website account.
 - After Firebase is configured, booking requires a verified customer account.
 - Phone OTP is shown as India-only for now: customer selects `India +91` and enters a 10-digit Indian mobile number.
+- Email login uses Firebase's secure email link. Customers must open the email link in the same browser.
 - The backend only trusts phone/email values verified by Firebase. A typed email is not treated as verified until the customer uses the email login link.
 
 ## Firebase Project
@@ -66,11 +67,9 @@ your custom domain later
 
 Firebase Console > Authentication > Sign-in method:
 
-- Phone: enable for mobile OTP.
-- Email/Password: enable Email link/passwordless sign-in if available in your Firebase console.
+- Phone: enable for mobile OTP. If this is off, the website shows "Mobile OTP is not enabled".
+- Email/Password: enable Email/Password and Email link/passwordless sign-in if available in your Firebase console. If the email does not arrive, check Inbox, Spam, Firebase email template settings, and sender limits.
 - Google: enable and configure consent screen in Google Cloud.
-- Apple: needs Apple Developer account, Services ID, Team ID, Key ID, and private key.
-- Microsoft: needs Microsoft Azure App Registration Client ID and Client Secret.
 
 For Phone, set the SMS region policy to allow India. The website currently shows only `India +91`.
 
@@ -83,25 +82,6 @@ In the Google provider screen, Firebase may ask for project-level settings befor
 3. Click Save.
 
 For this website, ignore the Android SHA-1 message unless you later build an Android app. Firebase can create the Google OAuth client automatically. Keep the authorized domain as your Render/custom domain.
-
-## Apple OAuth
-
-Apple Developer account is required:
-
-1. Create an Identifier / Services ID.
-2. Add Firebase callback URL shown in Firebase Apple provider settings.
-3. Create Apple private key.
-4. Add Team ID, Key ID, Services ID, and private key into Firebase Apple provider settings.
-
-## Microsoft OAuth
-
-Microsoft Azure Portal:
-
-1. App registrations.
-2. New registration.
-3. Add Firebase callback URL shown in Firebase Microsoft provider settings.
-4. Create Client Secret.
-5. Add Client ID and Client Secret into Firebase Microsoft provider settings.
 
 ## After Adding Keys
 
