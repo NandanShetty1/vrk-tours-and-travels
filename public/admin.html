@@ -30,11 +30,16 @@
           <p>Owner/admin controls vehicles, packages, final price, payment verification, and driver assignment.</p>
         </div>
         <form id="adminLoginForm" class="form-grid">
-          <label class="full">
-            Admin PIN
-            <input name="pin" type="password" inputmode="numeric" required>
+          <label>
+            Admin email
+            <input name="email" type="email" autocomplete="username" required>
           </label>
-          <button class="primary full" type="submit">Open admin portal</button>
+          <label>
+            Admin password
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="primary full" type="submit">Login</button>
+          <button class="ghost full" id="forgotPasswordButton" type="button">Forgot password</button>
           <p class="form-message full" id="adminLoginMessage" role="status"></p>
         </form>
       </section>
