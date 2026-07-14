@@ -206,11 +206,13 @@ img {
   gap: 8px;
 }
 
-.auth-tabs {
+.auth-tabs,
+.auth-method-tabs {
   width: 100%;
 }
 
-.auth-tabs button {
+.auth-tabs button,
+.auth-method-tabs button {
   flex: 1;
 }
 
