@@ -105,15 +105,16 @@
         title: "One day packages",
         empty: "No one day packages added.",
         fields: [
-          ["title", "Package title", "text"],
-          ["packageType", "Package type", "text"],
-          ["place", "Place", "text"],
-          ["hours", "Hours", "text"],
-          ["price", "Price", "number"],
-          ["image", "Image URL", "url"],
-          ["overview", "Overview", "textarea"],
-          ["highlights", "Highlights, one per line", "textarea"],
-          ["exclusions", "Exclusions, one per line", "textarea"],
+          ["title", "Package title", "text", { required: true, placeholder: "Mysuru palace one day trip" }],
+          ["packageType", "Package type", "text", { placeholder: "Temple, sightseeing, family trip" }],
+          ["place", "Places covered", "text", { required: true, placeholder: "Mysuru Palace, Chamundi Hills, Brindavan Garden" }],
+          ["hours", "Trip duration / hours", "text", { required: true, placeholder: "12 hours" }],
+          ["price", "Starting price", "number", { required: true, min: 0, step: "0.01" }],
+          ["image", "Image URL or uploaded image", "url", { upload: true, placeholder: "Paste image URL or upload below" }],
+          ["overview", "Customer overview", "textarea"],
+          ["highlights", "Package includes / highlights, one per line", "textarea"],
+          ["exclusions", "Extra charges / not included, one per line", "textarea"],
+          ["itinerary", "Day plan / itinerary, one per line", "textarea"],
           ["terms", "One day trip terms and conditions, one per line", "textarea"]
         ]
       },
@@ -513,6 +514,66 @@
     }
   }
 
+  function updateImagePreview(form, fieldName, value) {
+    const preview = form.querySelector(`[data-image-preview="${fieldName}"]`);
+    if (!preview) return;
+    if (!value) {
+      preview.classList.add("hidden");
+      preview.innerHTML = "";
+      return;
+    }
+    preview.classList.remove("hidden");
+    preview.innerHTML = `<img src="${VRK.escapeHtml(value)}" alt="Package image preview">`;
+  }
+
+  function resizeImageFile(file) {
+    return new Promise((resolve, reject) => {
+      if (!file || !file.type.startsWith("image/")) {
+        reject(new Error("Choose a valid image file."));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Could not read image file."));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Could not load image preview."));
+        img.onload = () => {
+          const maxSize = 1200;
+          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          const context = canvas.getContext("2d");
+          context.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.78));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function bindImageUploads(section, form) {
+    sections[section].querySelectorAll("[data-image-upload]").forEach((input) => {
+      input.addEventListener("change", async () => {
+        const fieldName = input.dataset.imageUpload;
+        const target = form.elements[fieldName];
+        if (!target || !input.files || !input.files[0]) return;
+        try {
+          const dataUrl = await resizeImageFile(input.files[0]);
+          target.value = dataUrl;
+          updateImagePreview(form, fieldName, dataUrl);
+        } catch (error) {
+          alert(error.message);
+          input.value = "";
+        }
+      });
+    });
+    sections[section].querySelectorAll("[data-image-value]").forEach((input) => {
+      input.addEventListener("input", () => updateImagePreview(form, input.dataset.imageValue, input.value));
+    });
+  }
+
   function renderField(field, item) {
     const [name, label, type, config = {}] = field;
     const value = Array.isArray(item && item[name]) ? VRK.linesToText(item[name]) : (item && item[name]) || "";
@@ -562,6 +623,19 @@
         </label>
       `;
     }
+    if (config.upload) {
+      return `
+        <label class="full image-upload-field">
+          ${label}
+          <input name="${name}" type="${type}" value="${VRK.escapeHtml(value)}" ${attrs} data-image-value="${name}">
+          <input class="image-upload-input" type="file" accept="image/*" data-image-upload="${name}">
+          <small>Upload a real trip/package image or paste a hosted image URL. Smaller images load faster for customers.</small>
+          <div class="image-preview ${value ? "" : "hidden"}" data-image-preview="${name}">
+            ${value ? `<img src="${VRK.escapeHtml(value)}" alt="${VRK.escapeHtml(label)} preview">` : ""}
+          </div>
+        </label>
+      `;
+    }
     return `
       <label>
         ${label}
@@ -577,6 +651,9 @@
     meta.fields.forEach(([name, , type, config = {}]) => {
       if (type === "checkbox" && form.elements[name]) {
         form.elements[name].checked = Boolean(config.defaultChecked);
+      }
+      if (config.upload) {
+        updateImagePreview(form, name, "");
       }
     });
   }
@@ -612,6 +689,7 @@
 
     const form = document.querySelector(`#${formId}`);
     form.addEventListener("submit", (event) => saveCollection(event, section));
+    bindImageUploads(section, form);
     sections[section].querySelectorAll("[data-edit]").forEach((button) => {
       button.addEventListener("click", () => fillCollectionForm(section, button.dataset.edit));
     });
@@ -645,7 +723,9 @@
           ]
             .filter(Boolean)
             .join(" | ")
-        : item.category || item.destination || item.place || item.phone;
+        : section === "days"
+          ? [item.packageType, item.place, item.hours].filter(Boolean).join(" | ")
+          : item.category || item.destination || item.place || item.phone;
     const price =
       section === "cars"
         ? [
@@ -655,23 +735,29 @@
           ]
             .filter(Boolean)
             .join(" | ")
-        : item.dayRate || item.price || item.rating;
+        : section === "days" && item.price
+          ? `starting ${item.price}`
+          : item.dayRate || item.price || item.rating;
     return `
       <article class="admin-row ${item.active ? "" : "muted"}">
-        <div>
-          <span class="badge ${item.active ? "good" : "danger"}">${item.active ? "active" : "hidden"}</span>
-          ${
-            section === "cars"
-              ? `
-                <span class="badge ${item.available === false ? "warn" : "active"}">${
-                  item.available === false ? "not available" : "available"
-                }</span>
-                ${item.featured ? `<span class="badge good">featured</span>` : ""}
-              `
-              : ""
-          }
-          <h3>${VRK.escapeHtml(title)}</h3>
-          <p>${VRK.escapeHtml(subtitle || "")}${price ? ` | ${VRK.escapeHtml(price)}` : ""}</p>
+        <div class="admin-row-main">
+          ${section === "days" && item.image ? `<img class="admin-thumb" src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(title)}">` : ""}
+          <div>
+            <span class="badge ${item.active ? "good" : "danger"}">${item.active ? "active" : "hidden"}</span>
+            ${
+              section === "cars"
+                ? `
+                  <span class="badge ${item.available === false ? "warn" : "active"}">${
+                    item.available === false ? "not available" : "available"
+                  }</span>
+                  ${item.featured ? `<span class="badge good">featured</span>` : ""}
+                `
+                : ""
+            }
+            ${section === "days" ? `<span class="badge active">one day</span>` : ""}
+            <h3>${VRK.escapeHtml(title)}</h3>
+            <p>${VRK.escapeHtml(subtitle || "")}${price ? ` | ${VRK.escapeHtml(price)}` : ""}</p>
+          </div>
         </div>
         <div class="row-actions">
           <button class="secondary" data-edit="${VRK.escapeHtml(item.id)}" type="button">Edit</button>
@@ -734,12 +820,15 @@
     const form = document.querySelector(`#${section}Form`);
     if (!item || !form) return;
     form.elements.id.value = item.id;
-    meta.fields.forEach(([name]) => {
+    meta.fields.forEach(([name, , , config = {}]) => {
       if (!form.elements[name]) return;
       if (form.elements[name].type === "checkbox") {
         form.elements[name].checked = Boolean(item[name]);
       } else {
         form.elements[name].value = Array.isArray(item[name]) ? VRK.linesToText(item[name]) : item[name] || "";
+      }
+      if (config.upload) {
+        updateImagePreview(form, name, form.elements[name].value);
       }
     });
     form.elements.active.checked = Boolean(item.active);
