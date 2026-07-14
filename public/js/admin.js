@@ -47,14 +47,33 @@
         title: "Cars",
         empty: "No cars added.",
         fields: [
-          ["name", "Car name", "text"],
-          ["category", "Category", "text"],
-          ["seats", "Seats", "number"],
-          ["fuel", "Fuel", "text"],
-          ["luggage", "Luggage", "text"],
-          ["ratePerKm", "Rate per km", "number"],
-          ["dayRate", "Day rate", "number"],
+          ["name", "Car name, letters and numbers only", "text", { required: true, pattern: "[A-Za-z0-9 ]+", placeholder: "Innova Crysta 7" }],
+          ["brand", "Brand", "text", { required: true, placeholder: "Toyota" }],
+          ["model", "Model", "text", { placeholder: "2024" }],
+          [
+            "vehicleNumber",
+            "Vehicle number, example KA09AB1234",
+            "text",
+            {
+              required: true,
+              pattern: "[A-Za-z]{2}[0-9]{1,2}[A-Za-z]{1,3}[0-9]{1,4}",
+              placeholder: "KA09AB1234",
+              uppercase: true
+            }
+          ],
+          ["category", "Category", "text", { required: true, placeholder: "Sedan, SUV, Tempo Traveller" }],
+          ["seats", "Seats, example 4+1 or 5+1", "text", { required: true, pattern: "[0-9]+\\+[0-9]+|[0-9]+", placeholder: "4+1" }],
+          ["luggageCapacity", "Luggage capacity", "number", { min: 0, step: 1, placeholder: "3" }],
+          ["ac", "AC vehicle", "checkbox", { defaultChecked: true }],
+          ["fuelType", "Fuel type", "select", { options: ["Petrol", "Diesel", "CNG", "Electric", "Hybrid"] }],
           ["image", "Image URL", "url"],
+          ["localRate", "Local rate per km", "number", { min: 0, step: "0.01" }],
+          ["outstationRate", "Outstation rate per km", "number", { min: 0, step: "0.01" }],
+          ["extraKmRate", "Extra km rate", "number", { min: 0, step: "0.01" }],
+          ["extraHourRate", "Extra hour rate", "number", { min: 0, step: "0.01" }],
+          ["available", "Available for booking", "checkbox", { defaultChecked: true }],
+          ["featured", "Featured car", "checkbox"],
+          ["description", "Description shown to customer", "textarea"],
           ["features", "Features, one per line", "textarea"],
           ["includedItems", "Default inclusions, one per line", "textarea"],
           ["extraCharges", "Extra charge notes, one per line", "textarea"],
@@ -397,8 +416,18 @@
   }
 
   function renderField(field, item) {
-    const [name, label, type] = field;
+    const [name, label, type, config = {}] = field;
     const value = Array.isArray(item && item[name]) ? VRK.linesToText(item[name]) : (item && item[name]) || "";
+    const attrs = [
+      config.required ? "required" : "",
+      config.pattern ? `pattern="${VRK.escapeHtml(config.pattern)}"` : "",
+      config.placeholder ? `placeholder="${VRK.escapeHtml(config.placeholder)}"` : "",
+      config.min !== undefined ? `min="${VRK.escapeHtml(config.min)}"` : "",
+      config.step !== undefined ? `step="${VRK.escapeHtml(config.step)}"` : "",
+      config.uppercase ? `data-uppercase="true"` : ""
+    ]
+      .filter(Boolean)
+      .join(" ");
     if (type === "textarea") {
       return `
         <label class="full">
@@ -407,12 +436,51 @@
         </label>
       `;
     }
+    if (type === "checkbox") {
+      const checked = item && item[name] !== undefined ? Boolean(item[name]) : Boolean(config.defaultChecked);
+      return `
+        <label class="switch-row full">
+          <input name="${name}" type="checkbox" ${checked ? "checked" : ""}>
+          ${label}
+        </label>
+      `;
+    }
+    if (type === "select") {
+      const selectOptions = config.options || [];
+      return `
+        <label>
+          ${label}
+          <select name="${name}" ${config.required ? "required" : ""}>
+            <option value="">Select ${VRK.escapeHtml(label.toLowerCase())}</option>
+            ${selectOptions
+              .map(
+                (option) =>
+                  `<option value="${VRK.escapeHtml(option)}" ${value === option ? "selected" : ""}>${VRK.escapeHtml(
+                    option
+                  )}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+      `;
+    }
     return `
       <label>
         ${label}
-        <input name="${name}" type="${type}" value="${VRK.escapeHtml(value)}">
+        <input name="${name}" type="${type}" value="${VRK.escapeHtml(value)}" ${attrs}>
       </label>
     `;
+  }
+
+  function resetCollectionForm(form, meta) {
+    form.reset();
+    form.elements.id.value = "";
+    form.elements.active.checked = true;
+    meta.fields.forEach(([name, , type, config = {}]) => {
+      if (type === "checkbox" && form.elements[name]) {
+        form.elements[name].checked = Boolean(config.defaultChecked);
+      }
+    });
   }
 
   function renderCollection(section) {
@@ -452,16 +520,52 @@
     sections[section].querySelectorAll("[data-archive]").forEach((button) => {
       button.addEventListener("click", () => archiveItem(section, button.dataset.archive));
     });
+    sections[section].querySelectorAll("[data-uppercase]").forEach((input) => {
+      input.addEventListener("input", () => {
+        input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      });
+    });
   }
 
   function renderCollectionItem(section, item) {
     const title = item.name || item.title;
-    const subtitle = item.category || item.destination || item.place || item.phone;
-    const price = item.dayRate || item.price || item.rating;
+    const subtitle =
+      section === "cars"
+        ? [
+            item.brand,
+            item.model,
+            item.vehicleNumber,
+            item.category,
+            item.seats ? `${item.seats} seats` : "",
+            item.available === false ? "unavailable" : "available"
+          ]
+            .filter(Boolean)
+            .join(" | ")
+        : item.category || item.destination || item.place || item.phone;
+    const price =
+      section === "cars"
+        ? [
+            item.localRate ? `local ${item.localRate}/km` : "",
+            item.outstationRate ? `outstation ${item.outstationRate}/km` : "",
+            item.extraHourRate ? `extra hour ${item.extraHourRate}` : ""
+          ]
+            .filter(Boolean)
+            .join(" | ")
+        : item.dayRate || item.price || item.rating;
     return `
       <article class="admin-row ${item.active ? "" : "muted"}">
         <div>
           <span class="badge ${item.active ? "good" : "danger"}">${item.active ? "active" : "hidden"}</span>
+          ${
+            section === "cars"
+              ? `
+                <span class="badge ${item.available === false ? "warn" : "active"}">${
+                  item.available === false ? "not available" : "available"
+                }</span>
+                ${item.featured ? `<span class="badge good">featured</span>` : ""}
+              `
+              : ""
+          }
           <h3>${VRK.escapeHtml(title)}</h3>
           <p>${VRK.escapeHtml(subtitle || "")}${price ? ` | ${VRK.escapeHtml(price)}` : ""}</p>
         </div>
@@ -478,8 +582,24 @@
     const meta = collectionMeta(section);
     const form = event.currentTarget;
     const payload = VRK.formToObject(form);
+    meta.fields.forEach(([name, , type]) => {
+      if (type === "checkbox" && form.elements[name]) {
+        payload[name] = form.elements[name].checked;
+      }
+    });
     payload.active = form.elements.active.checked;
-    ["seats", "ratePerKm", "dayRate", "price", "rating", "sortOrder"].forEach((field) => {
+    [
+      "luggageCapacity",
+      "localRate",
+      "outstationRate",
+      "extraKmRate",
+      "extraHourRate",
+      "ratePerKm",
+      "dayRate",
+      "price",
+      "rating",
+      "sortOrder"
+    ].forEach((field) => {
       if (payload[field] !== undefined && payload[field] !== "") payload[field] = Number(payload[field]);
     });
     const button = form.querySelector("button");
@@ -490,8 +610,7 @@
         headers: await adminHeaders(),
         body: JSON.stringify(payload)
       });
-      form.reset();
-      form.elements.active.checked = true;
+      resetCollectionForm(form, meta);
       await load();
     } catch (error) {
       alert(error.message);
@@ -508,7 +627,11 @@
     form.elements.id.value = item.id;
     meta.fields.forEach(([name]) => {
       if (!form.elements[name]) return;
-      form.elements[name].value = Array.isArray(item[name]) ? VRK.linesToText(item[name]) : item[name] || "";
+      if (form.elements[name].type === "checkbox") {
+        form.elements[name].checked = Boolean(item[name]);
+      } else {
+        form.elements[name].value = Array.isArray(item[name]) ? VRK.linesToText(item[name]) : item[name] || "";
+      }
     });
     form.elements.active.checked = Boolean(item.active);
     form.scrollIntoView({ behavior: "smooth", block: "center" });
