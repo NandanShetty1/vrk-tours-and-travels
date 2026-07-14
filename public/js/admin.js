@@ -252,6 +252,85 @@
     return (booking.costItems || []).map((item) => `${item.label} = ${item.amount}`).join("\n");
   }
 
+  const bookingCheckItems = [
+    ["customerContacted", "Customer contacted"],
+    ["routeVerified", "Pickup/drop verified"],
+    ["scheduleConfirmed", "Date and time confirmed"],
+    ["vehicleChecked", "Vehicle availability checked"],
+    ["fareShared", "Final fare shared"],
+    ["paymentChecked", "Payment proof checked"],
+    ["driverInformed", "Driver informed"],
+    ["tripCompleted", "Trip completed"]
+  ];
+
+  function bookingChecks(booking) {
+    return { ...(booking.checks || {}) };
+  }
+
+  function bookingProgress(booking) {
+    const checks = bookingChecks(booking);
+    const done = bookingCheckItems.filter(([key]) => checks[key]).length;
+    return Math.round((done / bookingCheckItems.length) * 100);
+  }
+
+  function nextBookingAction(booking) {
+    const checks = bookingChecks(booking);
+    if (booking.status === "cancelled") return "Booking cancelled";
+    if (!checks.customerContacted) return "Call or WhatsApp customer and confirm request";
+    if (!checks.routeVerified || !checks.scheduleConfirmed) return "Verify route, date, time, passengers, and luggage";
+    if (!checks.vehicleChecked || !booking.assignedCarId) return "Check car availability and assign vehicle";
+    if (!booking.amount || booking.paymentStatus === "waiting_for_amount") return "Prepare final fare breakup and share amount";
+    if (!checks.fareShared) return "Mark fare shared after customer confirmation";
+    if (booking.paymentStatus === "payment_submitted" && !checks.paymentChecked) return "Verify payment proof and transaction ID";
+    if (!booking.assignedDriverId || !checks.driverInformed) return "Assign/inform driver and share trip details";
+    if (["assigned", "driver_accepted"].includes(booking.status)) return "Monitor pickup and trip start";
+    if (booking.status === "on_trip" && !checks.tripCompleted) return "Follow trip and close after drop";
+    return "Ready for final bill and completion";
+  }
+
+  function phoneDigits(phone) {
+    return String(phone || "").replace(/\D/g, "");
+  }
+
+  function contactLinks(booking) {
+    const phone = phoneDigits(booking.phone);
+    if (!phone) return "";
+    const whatsAppPhone = phone.length === 10 ? `91${phone}` : phone;
+    const message = encodeURIComponent(
+      `Namaste ${booking.customerName}, this is VRK Tours and Travels about booking ${booking.id} for ${booking.packageTitle}.`
+    );
+    return `
+      <div class="contact-actions">
+        <a class="ghost ticket-link" href="tel:${phone}">Call</a>
+        <a class="ghost ticket-link" href="https://wa.me/${whatsAppPhone}?text=${message}" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+    `;
+  }
+
+  function bookingChecklistFields(booking) {
+    const checks = bookingChecks(booking);
+    return `
+      <div class="booking-checklist full">
+        <div>
+          <b>Owner booking checks</b>
+          <small>Use this before confirming payment, driver, and final bill.</small>
+        </div>
+        <div class="checklist-grid">
+          ${bookingCheckItems
+            .map(
+              ([key, label]) => `
+                <label class="switch-row">
+                  <input name="${key}" type="checkbox" ${checks[key] ? "checked" : ""}>
+                  ${label}
+                </label>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+  }
+
   function renderBookings() {
     const bookings = state.data.bookings;
     sections.bookings.innerHTML = `
@@ -279,12 +358,14 @@
     const driver = state.data.drivers.find((item) => item.id === booking.assignedDriverId);
     const car = state.data.cars.find((item) => item.id === booking.assignedCarId);
     const payment = booking.payment;
+    const progress = bookingProgress(booking);
     return `
       <article class="booking-card">
         <div class="booking-main">
           <div>
             <span class="badge ${VRK.statusClass(booking.status)}">${VRK.statusLabel(booking.status)}</span>
             <span class="badge ${VRK.statusClass(booking.paymentStatus)}">${VRK.statusLabel(booking.paymentStatus)}</span>
+            <span class="badge active">ID ${VRK.escapeHtml(booking.id)}</span>
             <h3>${VRK.escapeHtml(booking.packageTitle)}</h3>
             <p>${bookingTypeLabel(booking)} | ${VRK.dateLabel(booking.travelDate)} | ${VRK.escapeHtml(
       booking.passengers
@@ -292,14 +373,27 @@
           </div>
           <strong>${booking.amount ? VRK.money(booking.amount) : "Amount not set"}</strong>
         </div>
+        <div class="booking-ops">
+          <div>
+            <span class="eyebrow">Next admin action</span>
+            <strong>${VRK.escapeHtml(nextBookingAction(booking))}</strong>
+          </div>
+          <div class="ops-progress" aria-label="Booking checks ${progress}% complete">
+            <span style="width:${progress}%"></span>
+          </div>
+          <small>${progress}% checks complete</small>
+        </div>
         <div class="booking-detail-grid">
           <span><b>Customer</b>${VRK.escapeHtml(booking.customerName)} / ${VRK.escapeHtml(booking.phone)}</span>
+          <span><b>Email</b>${VRK.escapeHtml(booking.email || "Not added")}</span>
           <span><b>Pickup</b>${VRK.escapeHtml(booking.pickupLocation)}</span>
           <span><b>Drop</b>${VRK.escapeHtml(booking.dropLocation || "Not added")}</span>
+          <span><b>Return</b>${VRK.escapeHtml(booking.returnDate ? VRK.dateLabel(booking.returnDate) : "One way / not added")}</span>
           <span><b>Driver</b>${VRK.escapeHtml(driver ? driver.name : "Not assigned")}</span>
           <span><b>Car</b>${VRK.escapeHtml(car ? car.name : "Not assigned")}</span>
           <span><b>Created</b>${VRK.dateTimeLabel(booking.createdAt)}</span>
         </div>
+        ${contactLinks(booking)}
         ${booking.message ? `<p class="note-line">${VRK.escapeHtml(booking.message)}</p>` : ""}
         ${
           payment
@@ -311,6 +405,7 @@
             : ""
         }
         <form class="manage-booking-form form-grid compact" data-booking-id="${VRK.escapeHtml(booking.id)}">
+          ${bookingChecklistFields(booking)}
           <label>
             Driver
             <select name="assignedDriverId">${options(state.data.drivers, booking.assignedDriverId, "name")}</select>
@@ -399,6 +494,9 @@
     const bookingId = form.dataset.bookingId;
     const payload = VRK.formToObject(form);
     payload.amount = Number(payload.amount || 0);
+    bookingCheckItems.forEach(([key]) => {
+      payload[key] = Boolean(form.elements[key] && form.elements[key].checked);
+    });
     const button = form.querySelector("button");
     button.disabled = true;
     try {
