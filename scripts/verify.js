@@ -209,7 +209,15 @@ async function main() {
         costItems: "Base fare = 2800\nToll and parking = 300\nOwner discount = -100",
         includedItems: "AC sedan\nDriver allowance\nPickup and drop",
         excludedItems: "Extra kilometers\nNight charges",
-        confirmationMessage: "Owner confirmed the final payable amount."
+        confirmationMessage: "Owner confirmed the final payable amount.",
+        customerContacted: true,
+        routeVerified: true,
+        scheduleConfirmed: true,
+        vehicleChecked: true,
+        fareShared: true,
+        paymentChecked: false,
+        driverInformed: false,
+        tripCompleted: false
       })
     });
 
@@ -279,6 +287,7 @@ async function main() {
           deletedUnusedCar: deletedTempCar.ok,
           shownHiddenCar: shownCar.item.active,
           deleteBookedCarStatus,
+          bookingChecksSaved: confirmed.booking.checks && confirmed.booking.checks.fareShared === true,
           bookingId: created.booking.id,
           ownerConfirmedAmount: confirmed.booking.amount,
           paymentStatusAfterCustomer: paid.booking.paymentStatus,
