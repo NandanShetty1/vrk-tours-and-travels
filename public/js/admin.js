@@ -1,6 +1,14 @@
 (function () {
   const state = {
-    pin: sessionStorage.getItem("vrkAdminPin") || "",
+    auth: {
+      configured: false,
+      ready: false,
+      app: null,
+      instance: null,
+      modules: null,
+      user: null,
+      admin: null
+    },
     data: null,
     section: "bookings"
   };
@@ -9,6 +17,7 @@
   const adminApp = document.querySelector("#adminApp");
   const loginForm = document.querySelector("#adminLoginForm");
   const loginMessage = document.querySelector("#adminLoginMessage");
+  const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
   const metrics = document.querySelector("#metrics");
   const sectionButtons = Array.from(document.querySelectorAll("[data-section]"));
   const sections = {
@@ -23,8 +32,11 @@
     settings: document.querySelector("#settingsSection")
   };
 
-  function adminHeaders() {
-    return { "X-Admin-Pin": state.pin };
+  async function adminHeaders() {
+    if (state.auth.user) {
+      return { Authorization: `Bearer ${await state.auth.user.getIdToken()}` };
+    }
+    return {};
   }
 
   function collectionMeta(section) {
@@ -148,8 +160,8 @@
   }
 
   async function load() {
-    if (!state.pin) return;
-    state.data = await VRK.request("/api/admin-data", { headers: adminHeaders() });
+    if (state.auth.configured && !state.auth.user) return;
+    state.data = await VRK.request("/api/admin-data", { headers: await adminHeaders() });
     loginPanel.classList.add("hidden");
     adminApp.classList.remove("hidden");
     render();
@@ -373,7 +385,7 @@
     try {
       await VRK.request(`/api/admin/bookings/${bookingId}/assign`, {
         method: "POST",
-        headers: adminHeaders(),
+        headers: await adminHeaders(),
         body: JSON.stringify(payload)
       });
       await load();
@@ -475,7 +487,7 @@
     try {
       await VRK.request(meta.endpoint, {
         method: "POST",
-        headers: adminHeaders(),
+        headers: await adminHeaders(),
         body: JSON.stringify(payload)
       });
       form.reset();
@@ -507,7 +519,7 @@
     if (!confirm("Hide this item from customers?")) return;
     await VRK.request(`/api/admin/${meta.archive}/${itemId}/archive`, {
       method: "POST",
-      headers: adminHeaders()
+      headers: await adminHeaders()
     });
     await load();
   }
@@ -564,7 +576,7 @@
     try {
       await VRK.request("/api/admin/popup", {
         method: "POST",
-        headers: adminHeaders(),
+        headers: await adminHeaders(),
         body: JSON.stringify(payload)
       });
       await load();
@@ -637,10 +649,6 @@
           Bill terms, one per line
           <textarea name="terms" rows="4">${VRK.escapeHtml(VRK.linesToText(business.terms))}</textarea>
         </label>
-        <label class="full">
-          New admin PIN
-          <input name="adminPin" type="password" placeholder="Leave blank to keep current PIN">
-        </label>
         <button class="primary full" type="submit">Save owner settings</button>
       </form>
     `;
@@ -657,13 +665,9 @@
     try {
       await VRK.request("/api/admin/business", {
         method: "POST",
-        headers: adminHeaders(),
+        headers: await adminHeaders(),
         body: JSON.stringify(payload)
       });
-      if (payload.adminPin) {
-        state.pin = payload.adminPin;
-        sessionStorage.setItem("vrkAdminPin", payload.adminPin);
-      }
       await load();
     } catch (error) {
       alert(error.message);
@@ -678,32 +682,117 @@
     Object.entries(sections).forEach(([name, element]) => element.classList.toggle("hidden", name !== section));
   }
 
-  loginForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const pin = loginForm.elements.pin.value.trim();
-    VRK.setMessage(loginMessage, "Checking PIN...", "active");
-    try {
-      const result = await VRK.request("/api/admin/login", {
-        method: "POST",
-        body: JSON.stringify({ pin })
-      });
-      if (!result.ok) {
-        VRK.setMessage(loginMessage, "Wrong PIN.", "danger");
+  async function verifyAdminSession(user) {
+    const token = await user.getIdToken();
+    const result = await VRK.request("/api/admin/session", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    state.auth.admin = result.admin;
+    return result.admin;
+  }
+
+  function showLogin(message, tone) {
+    adminApp.classList.add("hidden");
+    loginPanel.classList.remove("hidden");
+    if (message) VRK.setMessage(loginMessage, message, tone || "");
+  }
+
+  function showAdminShell() {
+    loginPanel.classList.add("hidden");
+    adminApp.classList.remove("hidden");
+    VRK.setMessage(loginMessage, "", "");
+  }
+
+  function authFriendlyError(error) {
+    const code = error && error.code;
+    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+      return "Admin email or password is wrong.";
+    }
+    if (code === "auth/too-many-requests") {
+      return "Too many login attempts. Please wait and try again.";
+    }
+    if (code === "auth/operation-not-allowed") {
+      return "Enable Email/Password sign-in in Firebase Authentication.";
+    }
+    return (error && error.message) || "Admin login failed.";
+  }
+
+  async function setupAdminAuth() {
+    const config = await VRK.request("/api/auth/config");
+    state.auth.configured = Boolean(config.configured && config.firebaseConfig);
+    if (!state.auth.configured) {
+      showLogin("Firebase admin login is not configured in Render.", "danger");
+      return;
+    }
+    const appModule = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
+    const authModule = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
+    state.auth.modules = authModule;
+    state.auth.app = appModule.initializeApp(config.firebaseConfig);
+    state.auth.instance = authModule.getAuth(state.auth.app);
+    await authModule.setPersistence(state.auth.instance, authModule.browserSessionPersistence);
+    authModule.onAuthStateChanged(state.auth.instance, async (user) => {
+      state.auth.user = user;
+      if (!user) {
+        state.auth.admin = null;
+        showLogin();
         return;
       }
-      state.pin = pin;
-      sessionStorage.setItem("vrkAdminPin", pin);
+      try {
+        await verifyAdminSession(user);
+        showAdminShell();
+        await load();
+      } catch (error) {
+        state.auth.admin = null;
+        await authModule.signOut(state.auth.instance);
+        showLogin(error.message, "danger");
+      }
+    });
+  }
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.auth.configured || !state.auth.modules || !state.auth.instance) {
+      VRK.setMessage(loginMessage, "Firebase admin login is not ready. Check Render Firebase env vars.", "danger");
+      return;
+    }
+    const email = String(loginForm.elements.email.value || "").trim();
+    const password = String(loginForm.elements.password.value || "");
+    VRK.setMessage(loginMessage, "Checking admin account...", "active");
+    try {
+      const credential = await state.auth.modules.signInWithEmailAndPassword(state.auth.instance, email, password);
+      await verifyAdminSession(credential.user);
       await load();
     } catch (error) {
-      VRK.setMessage(loginMessage, error.message, "danger");
+      VRK.setMessage(loginMessage, authFriendlyError(error), "danger");
     }
   });
 
-  document.querySelector("#logoutButton").addEventListener("click", () => {
-    sessionStorage.removeItem("vrkAdminPin");
-    state.pin = "";
-    adminApp.classList.add("hidden");
-    loginPanel.classList.remove("hidden");
+  forgotPasswordButton.addEventListener("click", async () => {
+    if (!state.auth.configured || !state.auth.modules || !state.auth.instance) {
+      VRK.setMessage(loginMessage, "Firebase admin login is not ready.", "danger");
+      return;
+    }
+    const email = String(loginForm.elements.email.value || "").trim();
+    if (!email) {
+      VRK.setMessage(loginMessage, "Enter admin email first, then click forgot password.", "danger");
+      return;
+    }
+    try {
+      await state.auth.modules.sendPasswordResetEmail(state.auth.instance, email);
+      VRK.setMessage(loginMessage, "Password reset email sent. Check inbox and spam.", "good");
+    } catch (error) {
+      VRK.setMessage(loginMessage, authFriendlyError(error), "danger");
+    }
+  });
+
+  document.querySelector("#logoutButton").addEventListener("click", async () => {
+    state.auth.admin = null;
+    state.auth.user = null;
+    if (state.auth.modules && state.auth.instance) {
+      await state.auth.modules.signOut(state.auth.instance);
+    }
+    showLogin("Logged out.", "good");
   });
 
   sectionButtons.forEach((button) => {
@@ -711,13 +800,8 @@
   });
 
   VRK.watchLiveChanges(() => {
-    if (state.pin) load().catch(console.error);
+    if (state.auth.user) load().catch(console.error);
   });
 
-  if (state.pin) {
-    load().catch(() => {
-      sessionStorage.removeItem("vrkAdminPin");
-      state.pin = "";
-    });
-  }
+  setupAdminAuth().catch((error) => showLogin(error.message, "danger"));
 })();
