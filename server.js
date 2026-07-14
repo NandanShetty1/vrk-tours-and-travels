@@ -276,7 +276,7 @@ function normalizeStore(store) {
   store.business = {
     qrImage: "",
     gatewayNote: "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
-    authNote: "OTP login, Google login, Apple login, and Microsoft login require provider accounts and production keys before enabling.",
+    authNote: "Customer login uses Firebase Phone OTP, email link, and Google sign-in after production keys are configured.",
     ...store.business
   };
   store.banners = Array.isArray(store.banners) ? store.banners : [];
@@ -535,7 +535,7 @@ async function handleApi(req, res) {
       clientConfigured: client.configured,
       serverConfigured: firebaseAdminConfigured(),
       firebaseConfig: client.firebaseConfig,
-      providers: ["phone", "emailLink", "google.com", "apple.com", "microsoft.com"]
+      providers: ["phone", "emailLink", "google.com"]
     });
     return;
   }
