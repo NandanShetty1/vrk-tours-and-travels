@@ -6,6 +6,7 @@
     infoItem: null,
     heroTimer: null,
     catalogTimers: [],
+    pageMode: document.body.dataset.page || "home",
     customerProfile: null,
     auth: {
       ready: false,
@@ -380,13 +381,28 @@
   }
 
   function catalogSections() {
+    if (state.pageMode === "cars") {
+      return [
+        {
+          type: "car",
+          eyebrow: "Complete fleet",
+          title: "All active cars",
+          note: "Every active vehicle published by the owner, with image, category, seating, luggage, AC type, rates, and availability.",
+          empty: "Owner has not published active cars yet."
+        }
+      ];
+    }
+
     return [
       {
         type: "car",
         eyebrow: "Fleet",
-        title: "Cars for local and outstation trips",
-        note: "Compare seats, luggage, AC, fuel, and per-km rates before sending a booking request.",
-        empty: "Owner has not published active cars yet."
+        title: "Featured cars for local and outstation trips",
+        note: "Owner-selected vehicles shown first on the homepage. Open the full cars page to compare every active car.",
+        empty: "Owner has not marked any featured cars yet.",
+        featuredOnly: true,
+        actionHref: "/cars.html",
+        actionLabel: "View all cars"
       },
       {
         type: "tour",
@@ -451,6 +467,19 @@
     return `${VRK.money(item.price)} starting price`;
   }
 
+  function ratePerKm(value) {
+    const amount = Number(value || 0);
+    return amount ? `${VRK.money(amount)}/km` : "Owner confirms";
+  }
+
+  function availabilityLabel(item) {
+    return item && item.available === false ? "Currently unavailable" : "Available now";
+  }
+
+  function availabilityClass(item) {
+    return item && item.available === false ? "warn" : "good";
+  }
+
   function passengerCapacity(item) {
     const match = String(item && item.seats ? item.seats : "").match(/^\d+/);
     return match ? Number(match[0]) : 0;
@@ -501,9 +530,10 @@
     if (kindForItem(item) === "car") {
       const generated = [
         item.featured ? "Featured" : "",
-        item.available === false ? "Not available" : "Available",
+        availabilityLabel(item),
         item.brand || "",
-        item.vehicleNumber || ""
+        item.model || "",
+        item.fuelType || item.fuel || ""
       ].filter(Boolean);
       return [...generated, ...(item.features || [])];
     }
@@ -522,10 +552,10 @@
     if (kind === "car") {
       const luggage = Number(item.luggageCapacity || 0);
       return [
-        ["Seats", item.seats || "Ask owner"],
-        ["Luggage", luggage ? `${luggage}` : item.luggage || "Ask owner"],
-        ["Comfort", item.ac === false ? "Non AC" : "AC"],
-        ["Fuel", item.fuelType || item.fuel || "Ask owner"]
+        ["Category", item.category || "Car"],
+        ["Seating capacity", item.seats || "Ask owner"],
+        ["Luggage capacity", luggage ? `${luggage} bags` : item.luggage || "Ask owner"],
+        ["AC type", item.ac === false ? "Non AC" : "AC"]
       ];
     }
     if (kind === "tour") {
@@ -542,6 +572,21 @@
       ["Type", item.packageType || "One day"],
       ["Starts from", VRK.money(item.price || 0)]
     ];
+  }
+
+  function carRateStrip(item) {
+    return `
+      <div class="car-rate-strip">
+        <span>
+          <small>Starting local rate</small>
+          <b>${VRK.escapeHtml(ratePerKm(item.localRate || item.ratePerKm))}</b>
+        </span>
+        <span>
+          <small>Starting outstation rate</small>
+          <b>${VRK.escapeHtml(ratePerKm(item.outstationRate || item.dayRate))}</b>
+        </span>
+      </div>
+    `;
   }
 
   function includedForItem(item) {
@@ -645,8 +690,8 @@
           </div>
           ${
             item.image
-              ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(titleForItem(item))}" loading="lazy">`
-              : `<div class="image-placeholder" style="${styleForText(titleForItem(item))}">${VRK.escapeHtml(titleForItem(item))}</div>`
+              ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(`${titleForItem(item)} real vehicle image`)}" loading="lazy">`
+              : `<div class="image-placeholder" style="${styleForText(titleForItem(item))}">${VRK.escapeHtml(titleForItem(item))}<small>Vehicle image pending</small></div>`
           }
         </div>
         <div class="service-body">
@@ -655,6 +700,14 @@
             <span>${VRK.escapeHtml(detailForItem(item))}</span>
           </div>
           <h3>${VRK.escapeHtml(titleForItem(item))}</h3>
+          ${
+            kind === "car"
+              ? `<div class="service-status-row">
+                  <span class="availability-pill ${availabilityClass(item)}">${VRK.escapeHtml(availabilityLabel(item))}</span>
+                  <span>${VRK.escapeHtml([item.brand, item.model].filter(Boolean).join(" ") || item.category || "VRK vehicle")}</span>
+                </div>`
+              : ""
+          }
           <p>${VRK.escapeHtml(
             item.description || item.overview || "Owner-confirmed service with clear details, verified driver assignment, and booking bill."
           )}</p>
@@ -670,14 +723,15 @@
               )
               .join("")}
           </div>
+          ${kind === "car" ? carRateStrip(item) : ""}
           <div class="tag-row">
             ${(tags.length ? tags : [serviceLabel(item)]).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
           </div>
           <div class="card-actions">
-            <button class="ghost" data-details="${VRK.escapeHtml(item.id)}" data-type="${kind}" type="button">Details</button>
+            <button class="ghost" data-details="${VRK.escapeHtml(item.id)}" data-type="${kind}" type="button">View details</button>
             <button class="secondary" data-book="${VRK.escapeHtml(item.id)}" data-type="${kind}" type="button" ${
       unavailable ? "disabled" : ""
-    }>${unavailable ? "Unavailable" : "Book"}</button>
+    }>${unavailable ? "Unavailable" : "Book now"}</button>
           </div>
         </div>
       </article>
@@ -713,6 +767,12 @@
         <span>Starting price</span>
         <strong>${priceForItem(service)}</strong>
       </div>
+      ${
+        kindForItem(service) === "car"
+          ? `<div class="info-price"><span>Availability</span><strong>${VRK.escapeHtml(availabilityLabel(service))}</strong></div>`
+          : ""
+      }
+      ${kindForItem(service) === "car" ? carRateStrip(service) : ""}
       ${kindForItem(service) === "car" ? itemList("Car details", carDetailsForItem(service)) : ""}
       ${kindForItem(service) === "car" ? itemList("Rate details", carRateDetails(service)) : ""}
       ${itemList("Included", includedForItem(service))}
@@ -722,7 +782,7 @@
     `;
     infoBook.classList.remove("hidden");
     infoBook.disabled = unavailable;
-    infoBook.textContent = unavailable ? "Currently unavailable" : "Book this service";
+    infoBook.textContent = unavailable ? "Currently unavailable" : kindForItem(service) === "car" ? "Book this car" : "Book this service";
     infoModal.classList.remove("hidden");
   }
 
@@ -792,12 +852,24 @@
     });
   }
 
+  function itemsForSection(section) {
+    return itemByType(section.type)
+      .filter((item) => !section.featuredOnly || item.featured)
+      .sort((a, b) => Number(b.featured || false) - Number(a.featured || false));
+  }
+
+  function firstVisibleCatalogItem() {
+    for (const section of catalogSections()) {
+      const first = itemsForSection(section)[0];
+      if (first) return first;
+    }
+    return allItems()[0] || null;
+  }
+
   function renderCatalog() {
     const sections = catalogSections().map((section) => {
-      const items = itemByType(section.type)
-        .slice()
-        .sort((a, b) => Number(b.featured || false) - Number(a.featured || false));
-      const countLabel = `${items.length} ${items.length === 1 ? "option" : "options"}`;
+      const items = itemsForSection(section);
+      const countLabel = `${items.length} ${section.featuredOnly ? "featured" : items.length === 1 ? "option" : "options"}`;
       return `
         <section class="catalog-shelf" data-catalog-section="${section.type}" aria-label="${VRK.escapeHtml(section.title)}">
           <div class="shelf-head">
@@ -808,6 +880,7 @@
             </div>
             <div class="shelf-meta">
               <span>${VRK.escapeHtml(countLabel)}</span>
+              ${section.actionHref ? `<a class="shelf-link" href="${VRK.escapeHtml(section.actionHref)}">${VRK.escapeHtml(section.actionLabel || "View all")}</a>` : ""}
               <div class="shelf-controls">
                 <button class="ghost" data-slide="previous" type="button" aria-label="Previous ${VRK.escapeHtml(section.title)}">&lt;</button>
                 <button class="ghost" data-slide="next" type="button" aria-label="Next ${VRK.escapeHtml(section.title)}">&gt;</button>
@@ -932,7 +1005,7 @@
     renderGallery();
     renderFooter();
     if (!state.selected) {
-      const first = itemByTab()[0] || allItems()[0] || null;
+      const first = firstVisibleCatalogItem();
       setSelected(first, false);
     } else {
       renderCatalog();
