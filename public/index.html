@@ -199,8 +199,14 @@
                 <input name="customerName" autocomplete="name">
               </label>
               <label>
-                Mobile number with country code
-                <input name="phone" autocomplete="tel" inputmode="tel" placeholder="+91XXXXXXXXXX">
+                Country
+                <select name="countryCode" aria-label="Country code">
+                  <option value="+91">India +91</option>
+                </select>
+              </label>
+              <label>
+                India mobile number
+                <input name="phone" autocomplete="tel" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}" placeholder="9876543210">
               </label>
               <label class="full">
                 Email
