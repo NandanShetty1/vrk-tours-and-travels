@@ -6,11 +6,14 @@ The customer website is prepared for real verified login. Customers cannot be tr
 
 - New customer clicks the account icon, chooses Create account, verifies mobile OTP/email/social login, then account is created.
 - Existing customer clicks Login and verifies again.
+- Create account requires customer name plus one verified login method.
 - If an existing customer clicks Create account, the website shows: "You already have an account. Please login."
 - If a new customer clicks Login before creating an account, the website shows: "No customer account found. Please create an account first."
 - Customer can logout.
 - Customer can delete their VRK website account.
 - After Firebase is configured, booking requires a verified customer account.
+- Phone OTP is shown as India-only for now: customer selects `India +91` and enters a 10-digit Indian mobile number.
+- The backend only trusts phone/email values verified by Firebase. A typed email is not treated as verified until the customer uses the email login link.
 
 ## Firebase Project
 
@@ -69,9 +72,17 @@ Firebase Console > Authentication > Sign-in method:
 - Apple: needs Apple Developer account, Services ID, Team ID, Key ID, and private key.
 - Microsoft: needs Microsoft Azure App Registration Client ID and Client Secret.
 
+For Phone, set the SMS region policy to allow India. The website currently shows only `India +91`.
+
 ## Google OAuth
 
-Firebase can create the Google OAuth client automatically. If asked, open Google Cloud Console, configure OAuth consent screen, and keep the authorized domain as your Render/custom domain.
+In the Google provider screen, Firebase may ask for project-level settings before Save is enabled:
+
+1. Set Public-facing name for project to `VRK Tours and Travels`.
+2. Select Support email for project from the dropdown. This must be your owner Gmail/Google account email.
+3. Click Save.
+
+For this website, ignore the Android SHA-1 message unless you later build an Android app. Firebase can create the Google OAuth client automatically. Keep the authorized domain as your Render/custom domain.
 
 ## Apple OAuth
 
