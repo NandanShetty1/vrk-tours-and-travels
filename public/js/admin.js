@@ -520,6 +520,9 @@
     sections[section].querySelectorAll("[data-archive]").forEach((button) => {
       button.addEventListener("click", () => archiveItem(section, button.dataset.archive));
     });
+    sections[section].querySelectorAll("[data-delete]").forEach((button) => {
+      button.addEventListener("click", () => deleteItem(section, button.dataset.delete));
+    });
     sections[section].querySelectorAll("[data-uppercase]").forEach((input) => {
       input.addEventListener("input", () => {
         input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -572,6 +575,7 @@
         <div class="row-actions">
           <button class="secondary" data-edit="${VRK.escapeHtml(item.id)}" type="button">Edit</button>
           <button class="ghost" data-archive="${VRK.escapeHtml(item.id)}" type="button">Hide</button>
+          <button class="ghost danger-button" data-delete="${VRK.escapeHtml(item.id)}" type="button">Delete</button>
         </div>
       </article>
     `;
@@ -645,6 +649,22 @@
       headers: await adminHeaders()
     });
     await load();
+  }
+
+  async function deleteItem(section, itemId) {
+    const meta = collectionMeta(section);
+    const item = collectionFor(section).find((entry) => entry.id === itemId);
+    const title = item ? item.name || item.title || item.phone || item.id : itemId;
+    if (!confirm(`Permanently delete "${title}"? Use Hide instead if this item has booking history.`)) return;
+    try {
+      await VRK.request(`/api/admin/${meta.archive}/${itemId}/delete`, {
+        method: "DELETE",
+        headers: await adminHeaders()
+      });
+      await load();
+    } catch (error) {
+      alert(error.message);
+    }
   }
 
   function renderPopup() {
