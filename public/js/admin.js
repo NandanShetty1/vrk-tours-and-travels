@@ -86,16 +86,22 @@
         title: "Tour packages",
         empty: "No tour packages added.",
         fields: [
-          ["title", "Package title", "text"],
-          ["packageType", "Package type", "text"],
-          ["destination", "Destination", "text"],
-          ["duration", "Duration", "text"],
-          ["price", "Price", "number"],
-          ["image", "Image URL", "url"],
-          ["overview", "Overview", "textarea"],
+          ["title", "Package title", "text", { required: true, placeholder: "Coorg family tour package" }],
+          ["packageType", "Package type", "text", { placeholder: "Family tour, temple tour, honeymoon trip" }],
+          ["days", "Number of days", "number", { required: true, min: 1, step: 1 }],
+          ["nights", "Number of nights", "number", { min: 0, step: 1 }],
+          ["startingPlace", "Starting place", "text", { required: true, placeholder: "Mangaluru / Bengaluru" }],
+          ["destinations", "Destinations covered", "text", { required: true, placeholder: "Coorg, Madikeri, Abbey Falls" }],
+          ["suitableVehicles", "Suitable vehicles", "text", { placeholder: "Sedan, SUV, Tempo Traveller" }],
+          ["price", "Starting price", "number", { required: true, min: 0, step: "0.01" }],
+          ["driverAllowance", "Driver allowance", "number", { min: 0, step: "0.01" }],
+          ["nightAllowance", "Night allowance", "number", { min: 0, step: "0.01" }],
+          ["tollParkingInfo", "Toll and parking information", "textarea"],
+          ["image", "Tour image URL or uploaded image", "url", { upload: true, placeholder: "Paste tour image URL or upload below" }],
+          ["overview", "Customer overview", "textarea"],
           ["inclusions", "Inclusions, one per line", "textarea"],
           ["exclusions", "Exclusions, one per line", "textarea"],
-          ["itinerary", "Itinerary, one per line", "textarea"],
+          ["itinerary", "Day wise itinerary, one per line", "textarea"],
           ["terms", "Tour terms and conditions, one per line", "textarea"]
         ]
       },
@@ -711,6 +717,11 @@
 
   function renderCollectionItem(section, item) {
     const title = item.name || item.title;
+    const tourDuration =
+      section === "tours"
+        ? [item.days ? `${item.days} days` : "", item.nights ? `${item.nights} nights` : ""].filter(Boolean).join(" / ") ||
+          item.duration
+        : "";
     const subtitle =
       section === "cars"
         ? [
@@ -725,7 +736,11 @@
             .join(" | ")
         : section === "days"
           ? [item.packageType, item.place, item.hours].filter(Boolean).join(" | ")
-          : item.category || item.destination || item.place || item.phone;
+          : section === "tours"
+            ? [item.packageType, item.startingPlace, item.destinations || item.destination, tourDuration, item.suitableVehicles]
+                .filter(Boolean)
+                .join(" | ")
+            : item.category || item.destination || item.place || item.phone;
     const price =
       section === "cars"
         ? [
@@ -737,11 +752,17 @@
             .join(" | ")
         : section === "days" && item.price
           ? `starting ${item.price}`
-          : item.dayRate || item.price || item.rating;
+          : section === "tours" && item.price
+            ? `starting ${item.price}`
+            : item.dayRate || item.price || item.rating;
     return `
       <article class="admin-row ${item.active ? "" : "muted"}">
         <div class="admin-row-main">
-          ${section === "days" && item.image ? `<img class="admin-thumb" src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(title)}">` : ""}
+          ${
+            (section === "days" || section === "tours") && item.image
+              ? `<img class="admin-thumb" src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(title)}">`
+              : ""
+          }
           <div>
             <span class="badge ${item.active ? "good" : "danger"}">${item.active ? "active" : "hidden"}</span>
             ${
@@ -755,6 +776,7 @@
                 : ""
             }
             ${section === "days" ? `<span class="badge active">one day</span>` : ""}
+            ${section === "tours" ? `<span class="badge active">tour</span>` : ""}
             <h3>${VRK.escapeHtml(title)}</h3>
             <p>${VRK.escapeHtml(subtitle || "")}${price ? ` | ${VRK.escapeHtml(price)}` : ""}</p>
           </div>
@@ -792,6 +814,10 @@
       "ratePerKm",
       "dayRate",
       "price",
+      "days",
+      "nights",
+      "driverAllowance",
+      "nightAllowance",
       "rating",
       "sortOrder"
     ].forEach((field) => {
