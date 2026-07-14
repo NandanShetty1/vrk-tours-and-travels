@@ -690,27 +690,39 @@
       galleryGrid.innerHTML = `<div class="empty-state">Gallery will appear after owner adds completed trip photos or videos.</div>`;
       return;
     }
-    galleryGrid.innerHTML = items
-      .map(
-        (item) => `
-          <article class="gallery-card">
-            ${
-              item.mediaType === "video"
-                ? `<video src="${VRK.escapeHtml(item.mediaUrl)}" controls preload="metadata"></video>`
-                : `<img src="${VRK.escapeHtml(item.mediaUrl)}" alt="${VRK.escapeHtml(item.title)}" loading="lazy">`
-            }
-            <div>
-              <h3>${VRK.escapeHtml(item.title)}</h3>
-              <p>${VRK.escapeHtml(item.caption || "")}</p>
-              <div class="tag-row">${(item.tags || [])
-                .slice(0, 3)
-                .map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`)
-                .join("")}</div>
-            </div>
-          </article>
-        `
-      )
-      .join("");
+    const galleryCard = (item, isClone) => `
+      <article class="gallery-card" ${isClone ? `aria-hidden="true"` : ""}>
+        <div class="gallery-media">
+          ${
+            item.mediaType === "video"
+              ? `<video src="${VRK.escapeHtml(item.mediaUrl)}" ${
+                  item.thumbnail ? `poster="${VRK.escapeHtml(item.thumbnail)}"` : ""
+                } controls preload="metadata"></video>`
+              : `<img src="${VRK.escapeHtml(item.mediaUrl)}" alt="${VRK.escapeHtml(item.title)}" loading="lazy">`
+          }
+        </div>
+        <div>
+          <h3>${VRK.escapeHtml(item.title)}</h3>
+          <p>${VRK.escapeHtml(item.caption || "")}</p>
+          <div class="tag-row">${(item.tags || [])
+            .slice(0, 2)
+            .map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`)
+            .join("")}</div>
+        </div>
+      </article>
+    `;
+    const visibleItems = items.slice(0, 10);
+    const animated = visibleItems.length > 1;
+    const cards = visibleItems.map((item) => galleryCard(item, false)).join("");
+    const clones = animated ? visibleItems.map((item) => galleryCard(item, true)).join("") : "";
+    galleryGrid.innerHTML = `
+      <div class="gallery-rail" style="--gallery-speed: ${Math.max(24, visibleItems.length * 7)}s">
+        <div class="gallery-track ${animated ? "is-animated" : "is-static"}">
+          ${cards}
+          ${clones}
+        </div>
+      </div>
+    `;
   }
 
   function setSelected(item, openModal) {
