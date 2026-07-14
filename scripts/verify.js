@@ -142,6 +142,25 @@ async function main() {
       })
     });
 
+    const dayPackageResult = await request(base, "/api/admin/day-packages", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        title: "Mysuru One Day Trip",
+        packageType: "Sightseeing",
+        place: "Mysuru Palace, Chamundi Hills, Brindavan Garden",
+        hours: "12 hours",
+        price: 4500,
+        image: "https://example.com/mysuru.jpg",
+        overview: "Owner planned one day trip with clear inclusions and terms.",
+        highlights: "Pickup and drop\nSightseeing route planning",
+        exclusions: "Entry tickets\nParking and toll",
+        itinerary: "Morning pickup\nMysuru Palace visit\nEvening return",
+        terms: "Final timings are owner confirmed.",
+        active: true
+      })
+    });
+
     const tempCarResult = await request(base, "/api/admin/cars", {
       method: "POST",
       headers: { "X-Admin-Pin": "1234" },
@@ -179,6 +198,12 @@ async function main() {
     });
 
     const publicAfterSetup = await request(base, "/api/public-data");
+
+    await request(base, `/api/admin/dayPackages/${dayPackageResult.item.id}/archive`, {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" }
+    });
+    const publicAfterDayArchive = await request(base, "/api/public-data");
 
     const created = await request(base, "/api/bookings", {
       method: "POST",
@@ -284,6 +309,8 @@ async function main() {
           pageStatuses,
           initialPublicCars: publicEmpty.cars.length,
           publicCarsAfterOwnerSetup: publicAfterSetup.cars.length,
+          publicDayPackagesAfterOwnerSetup: publicAfterSetup.dayPackages.length,
+          dayPackageHiddenPublicly: publicAfterDayArchive.dayPackages.length === 0,
           adminLogin: adminLogin.ok,
           deletedUnusedCar: deletedTempCar.ok,
           shownHiddenCar: shownCar.item.active,
