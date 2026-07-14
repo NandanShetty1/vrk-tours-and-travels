@@ -537,6 +537,10 @@
       ].filter(Boolean);
       return [...generated, ...(item.features || [])];
     }
+    if (kindForItem(item) === "day") {
+      const generated = [item.packageType || "One day", item.place || "", item.hours || ""].filter(Boolean);
+      return [...generated, ...(item.highlights || item.inclusions || [])];
+    }
     return item.features || item.inclusions || item.highlights || [];
   }
 
@@ -567,10 +571,10 @@
       ];
     }
     return [
-      ["Place", item.place || "Custom"],
-      ["Hours", item.hours || "Ask owner"],
-      ["Type", item.packageType || "One day"],
-      ["Starts from", VRK.money(item.price || 0)]
+      ["Places covered", item.place || "Custom"],
+      ["Trip duration", item.hours || "Ask owner"],
+      ["Package type", item.packageType || "One day"],
+      ["Starting price", VRK.money(item.price || 0)]
     ];
   }
 
@@ -584,6 +588,21 @@
         <span>
           <small>Starting outstation rate</small>
           <b>${VRK.escapeHtml(ratePerKm(item.outstationRate || item.dayRate))}</b>
+        </span>
+      </div>
+    `;
+  }
+
+  function dayPackageStrip(item) {
+    return `
+      <div class="package-price-strip">
+        <span>
+          <small>Starting package price</small>
+          <b>${VRK.escapeHtml(VRK.money(item.price || 0))}</b>
+        </span>
+        <span>
+          <small>Places covered</small>
+          <b>${VRK.escapeHtml(item.place || "Owner confirms")}</b>
         </span>
       </div>
     `;
@@ -690,8 +709,12 @@
           </div>
           ${
             item.image
-              ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(`${titleForItem(item)} real vehicle image`)}" loading="lazy">`
-              : `<div class="image-placeholder" style="${styleForText(titleForItem(item))}">${VRK.escapeHtml(titleForItem(item))}<small>Vehicle image pending</small></div>`
+              ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(
+                  `${titleForItem(item)} ${kind === "car" ? "real vehicle image" : "package image"}`
+                )}" loading="lazy">`
+              : `<div class="image-placeholder" style="${styleForText(titleForItem(item))}">${VRK.escapeHtml(titleForItem(item))}<small>${
+                  kind === "car" ? "Vehicle image pending" : "Package image pending"
+                }</small></div>`
           }
         </div>
         <div class="service-body">
@@ -724,6 +747,7 @@
               .join("")}
           </div>
           ${kind === "car" ? carRateStrip(item) : ""}
+          ${kind === "day" ? dayPackageStrip(item) : ""}
           <div class="tag-row">
             ${(tags.length ? tags : [serviceLabel(item)]).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
           </div>
@@ -773,6 +797,7 @@
           : ""
       }
       ${kindForItem(service) === "car" ? carRateStrip(service) : ""}
+      ${kindForItem(service) === "day" ? dayPackageStrip(service) : ""}
       ${kindForItem(service) === "car" ? itemList("Car details", carDetailsForItem(service)) : ""}
       ${kindForItem(service) === "car" ? itemList("Rate details", carRateDetails(service)) : ""}
       ${itemList("Included", includedForItem(service))}
