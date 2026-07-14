@@ -5,6 +5,7 @@
     selected: null,
     infoItem: null,
     heroTimer: null,
+    catalogTimers: [],
     customerProfile: null,
     auth: {
       ready: false,
@@ -371,6 +372,39 @@
     return state.data.dayPackages;
   }
 
+  function itemByType(type) {
+    if (!state.data) return [];
+    if (type === "car") return state.data.cars.map((item) => ({ ...item, bookingType: "car" }));
+    if (type === "tour") return state.data.tourPackages.map((item) => ({ ...item, bookingType: "tour" }));
+    return state.data.dayPackages.map((item) => ({ ...item, bookingType: "day" }));
+  }
+
+  function catalogSections() {
+    return [
+      {
+        type: "car",
+        eyebrow: "Fleet",
+        title: "Cars for local and outstation trips",
+        note: "Compare seats, luggage, AC, fuel, and per-km rates before sending a booking request.",
+        empty: "Owner has not published active cars yet."
+      },
+      {
+        type: "tour",
+        eyebrow: "Tour packages",
+        title: "Multi-day tour packages",
+        note: "Package cards show destination, duration, inclusions, exclusions, and owner-set starting price.",
+        empty: "Owner has not published active tour packages yet."
+      },
+      {
+        type: "day",
+        eyebrow: "One day",
+        title: "One day travel packages",
+        note: "Quick plans for temple visits, sightseeing, family outings, and same-day return trips.",
+        empty: "Owner has not published active one day packages yet."
+      }
+    ];
+  }
+
   function allItems() {
     if (!state.data) return [];
     return [
@@ -476,6 +510,40 @@
     return item.features || item.inclusions || item.highlights || [];
   }
 
+  function serviceLabel(item) {
+    const kind = kindForItem(item);
+    if (kind === "car") return item.category || "Car";
+    if (kind === "tour") return item.packageType || "Tour package";
+    return item.packageType || "One day package";
+  }
+
+  function cardSpecsForItem(item) {
+    const kind = kindForItem(item);
+    if (kind === "car") {
+      const luggage = Number(item.luggageCapacity || 0);
+      return [
+        ["Seats", item.seats || "Ask owner"],
+        ["Luggage", luggage ? `${luggage}` : item.luggage || "Ask owner"],
+        ["Comfort", item.ac === false ? "Non AC" : "AC"],
+        ["Fuel", item.fuelType || item.fuel || "Ask owner"]
+      ];
+    }
+    if (kind === "tour") {
+      return [
+        ["Destination", item.destination || "Custom"],
+        ["Duration", item.duration || "Ask owner"],
+        ["Type", item.packageType || "Tour"],
+        ["Starts from", VRK.money(item.price || 0)]
+      ];
+    }
+    return [
+      ["Place", item.place || "Custom"],
+      ["Hours", item.hours || "Ask owner"],
+      ["Type", item.packageType || "One day"],
+      ["Starts from", VRK.money(item.price || 0)]
+    ];
+  }
+
   function includedForItem(item) {
     if (!item) return [];
     const kind = kindForItem(item);
@@ -560,32 +628,54 @@
   }
 
   function card(item) {
-    const selected = state.selected && state.selected.id === item.id;
     const kind = kindForItem(item);
+    const selected = state.selected && state.selected.id === item.id && kindForItem(state.selected) === kind;
     const unavailable = kind === "car" && item.available === false;
+    const specs = cardSpecsForItem(item);
+    const tags = tagsForItem(item).filter(Boolean).slice(0, 4);
     return `
-      <article class="service-card ${selected ? "selected" : ""} ${item.featured ? "featured-card" : ""} ${
+      <article class="service-card catalog-card ${selected ? "selected" : ""} ${item.featured ? "featured-card" : ""} ${
       unavailable ? "unavailable-card" : ""
-    }">
-        ${item.featured ? `<span class="card-badge">Featured</span>` : ""}
-        ${
-          item.image
-            ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(titleForItem(item))}" loading="lazy">`
-            : `<div class="image-placeholder">${VRK.escapeHtml(titleForItem(item))}</div>`
-        }
+    }" data-card-type="${kind}">
+        <div class="service-media">
+          <div class="service-card-label">
+            <span>${VRK.escapeHtml(serviceLabel(item))}</span>
+            ${item.featured ? `<b>Featured</b>` : ""}
+            ${unavailable ? `<b>Unavailable</b>` : ""}
+          </div>
+          ${
+            item.image
+              ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(titleForItem(item))}" loading="lazy">`
+              : `<div class="image-placeholder" style="${styleForText(titleForItem(item))}">${VRK.escapeHtml(titleForItem(item))}</div>`
+          }
+        </div>
         <div class="service-body">
           <div class="service-topline">
-            <span>${VRK.escapeHtml(detailForItem(item))}</span>
             <strong>${priceForItem(item)}</strong>
+            <span>${VRK.escapeHtml(detailForItem(item))}</span>
           </div>
           <h3>${VRK.escapeHtml(titleForItem(item))}</h3>
-          <p>${VRK.escapeHtml(item.description || item.overview || "Comfortable service with owner-confirmed fare and verified driver.")}</p>
+          <p>${VRK.escapeHtml(
+            item.description || item.overview || "Owner-confirmed service with clear details, verified driver assignment, and booking bill."
+          )}</p>
+          <div class="service-spec-grid">
+            ${specs
+              .map(
+                ([label, value]) => `
+                  <span>
+                    <small>${VRK.escapeHtml(label)}</small>
+                    <b>${VRK.escapeHtml(value)}</b>
+                  </span>
+                `
+              )
+              .join("")}
+          </div>
           <div class="tag-row">
-            ${tagsForItem(item).slice(0, 4).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
+            ${(tags.length ? tags : [serviceLabel(item)]).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
           </div>
           <div class="card-actions">
-            <button class="ghost" data-details="${VRK.escapeHtml(item.id)}" type="button">Details</button>
-            <button class="secondary" data-book="${VRK.escapeHtml(item.id)}" type="button" ${
+            <button class="ghost" data-details="${VRK.escapeHtml(item.id)}" data-type="${kind}" type="button">Details</button>
+            <button class="secondary" data-book="${VRK.escapeHtml(item.id)}" data-type="${kind}" type="button" ${
       unavailable ? "disabled" : ""
     }>${unavailable ? "Unavailable" : "Book"}</button>
           </div>
@@ -673,15 +763,72 @@
     `;
   }
 
+  function stopCatalogAutoplay() {
+    state.catalogTimers.forEach((timer) => window.clearInterval(timer));
+    state.catalogTimers = [];
+  }
+
+  function slideCatalogTrack(track, direction) {
+    if (!track) return;
+    const distance = Math.max(280, Math.round(track.clientWidth * 0.86));
+    const maxLeft = track.scrollWidth - track.clientWidth;
+    if (maxLeft <= 4) return;
+    const nextLeft = direction === "previous" ? track.scrollLeft - distance : track.scrollLeft + distance;
+    track.scrollTo({
+      left: nextLeft >= maxLeft - 12 ? 0 : Math.max(0, nextLeft),
+      behavior: "smooth"
+    });
+  }
+
+  function startCatalogAutoplay() {
+    stopCatalogAutoplay();
+    Array.from(catalog.querySelectorAll("[data-catalog-track]")).forEach((track, index) => {
+      if (track.scrollWidth <= track.clientWidth + 12) return;
+      const timer = window.setInterval(() => {
+        if (document.hidden || track.matches(":hover") || track.closest(".catalog-shelf").matches(":hover")) return;
+        slideCatalogTrack(track, "next");
+      }, 4200 + index * 600);
+      state.catalogTimers.push(timer);
+    });
+  }
+
   function renderCatalog() {
-    const items = itemByTab()
-      .slice()
-      .sort((a, b) => Number(b.featured || false) - Number(a.featured || false));
-    if (!items.length) {
-      catalog.innerHTML = `<div class="empty-state">Owner has not published active items in this section yet.</div>`;
-      return;
-    }
-    catalog.innerHTML = items.map(card).join("");
+    const sections = catalogSections().map((section) => {
+      const items = itemByType(section.type)
+        .slice()
+        .sort((a, b) => Number(b.featured || false) - Number(a.featured || false));
+      const countLabel = `${items.length} ${items.length === 1 ? "option" : "options"}`;
+      return `
+        <section class="catalog-shelf" data-catalog-section="${section.type}" aria-label="${VRK.escapeHtml(section.title)}">
+          <div class="shelf-head">
+            <div>
+              <span class="eyebrow">${VRK.escapeHtml(section.eyebrow)}</span>
+              <h3>${VRK.escapeHtml(section.title)}</h3>
+              <p>${VRK.escapeHtml(section.note)}</p>
+            </div>
+            <div class="shelf-meta">
+              <span>${VRK.escapeHtml(countLabel)}</span>
+              <div class="shelf-controls">
+                <button class="ghost" data-slide="previous" type="button" aria-label="Previous ${VRK.escapeHtml(section.title)}">&lt;</button>
+                <button class="ghost" data-slide="next" type="button" aria-label="Next ${VRK.escapeHtml(section.title)}">&gt;</button>
+              </div>
+            </div>
+          </div>
+          ${
+            items.length
+              ? `<div class="catalog-slider">
+                  <div class="catalog-track" data-catalog-track="${section.type}">
+                    ${items.map(card).join("")}
+                  </div>
+                </div>`
+              : `<div class="empty-state">${VRK.escapeHtml(section.empty)}</div>`
+          }
+        </section>
+      `;
+    });
+
+    catalog.innerHTML = `<div class="catalog-shelves">${sections.join("")}</div>`;
+    startCatalogAutoplay();
   }
 
   function renderGallery() {
@@ -997,10 +1144,18 @@
     });
   });
 
+  function itemFromActionButton(button, field) {
+    if (!button) return null;
+    const id = button.dataset[field] || "";
+    const type = button.dataset.type || bookingTypeForTab();
+    return itemByType(type).find((entry) => entry.id === id) || null;
+  }
+
   document.body.addEventListener("click", (event) => {
     const selectButton = event.target.closest("[data-select]");
     const detailsButton = event.target.closest("[data-details]");
     const bookButton = event.target.closest("[data-book]");
+    const slideButton = event.target.closest("[data-slide]");
     const bannerInfo = event.target.closest("[data-banner-info]");
     const openButton = event.target.closest("[data-open-booking]");
     const providerButton = event.target.closest("[data-auth-provider]");
@@ -1008,17 +1163,22 @@
     const customerLogout = event.target.closest("[data-customer-logout]");
     const customerDelete = event.target.closest("[data-customer-delete]");
 
+    if (slideButton) {
+      const shelf = slideButton.closest(".catalog-shelf");
+      slideCatalogTrack(shelf && shelf.querySelector("[data-catalog-track]"), slideButton.dataset.slide);
+    }
+
     if (selectButton || bookButton) {
-      const id = (selectButton || bookButton).dataset.select || (selectButton || bookButton).dataset.book;
-      const item = itemByTab().find((entry) => entry.id === id);
-      if (item && !(bookButton && bookingTypeForTab() === "car" && item.available === false)) {
-        setSelected({ ...item, bookingType: bookingTypeForTab() }, Boolean(bookButton));
+      const button = selectButton || bookButton;
+      const item = itemFromActionButton(button, selectButton ? "select" : "book");
+      if (item && !(bookButton && kindForItem(item) === "car" && item.available === false)) {
+        setSelected(item, Boolean(bookButton));
       }
     }
 
     if (detailsButton) {
-      const item = itemByTab().find((entry) => entry.id === detailsButton.dataset.details);
-      if (item) openServiceInfo({ ...item, bookingType: bookingTypeForTab() });
+      const item = itemFromActionButton(detailsButton, "details");
+      if (item) openServiceInfo(item);
     }
 
     if (bannerInfo) {
