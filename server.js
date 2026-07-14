@@ -422,6 +422,51 @@ function parseMoney(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function parseInteger(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
+}
+
+function flagValue(value, defaultValue = false) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  if (value === true || value === "true" || value === "on" || value === "1" || value === 1) return true;
+  if (value === false || value === "false" || value === "off" || value === "0" || value === 0) return false;
+  return Boolean(value);
+}
+
+function validationError(message) {
+  const err = new Error(message);
+  err.status = 422;
+  return err;
+}
+
+function normalizeCarName(value) {
+  const name = String(value || "").trim().replace(/\s+/g, " ");
+  if (!name) throw validationError("Car name is required");
+  if (!/^[A-Za-z0-9 ]+$/.test(name)) {
+    throw validationError("Car name can contain only letters, numbers, and spaces");
+  }
+  return name;
+}
+
+function normalizeVehicleNumber(value) {
+  const vehicleNumber = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!vehicleNumber) throw validationError("Vehicle number is required");
+  if (!/^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{1,4}$/.test(vehicleNumber)) {
+    throw validationError("Vehicle number format should look like KA09AB1234");
+  }
+  return vehicleNumber;
+}
+
+function normalizeSeatLabel(value) {
+  const seats = String(value || "").trim().replace(/\s+/g, "");
+  if (!seats) throw validationError("Seats field is required");
+  if (!/^\d+(\+\d+)?$/.test(seats)) {
+    throw validationError("Seats should look like 4+1, 5+1, or 7");
+  }
+  return seats;
+}
+
 function parseCostItems(value, fallbackAmount) {
   if (Array.isArray(value)) {
     return value
@@ -815,22 +860,39 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/admin/cars") {
     if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
-    requireFields(body, ["name", "category", "seats"]);
+    requireFields(body, ["name", "brand", "vehicleNumber", "category", "seats"]);
+    const localRate = parseMoney(body.localRate !== undefined ? body.localRate : body.ratePerKm);
+    const outstationRate = parseMoney(body.outstationRate !== undefined ? body.outstationRate : body.dayRate);
+    const fuelType = String(body.fuelType || body.fuel || "").trim();
+    const luggageCapacity = parseInteger(body.luggageCapacity);
     const item = upsertById(store.cars, {
       id: body.id || id("CAR"),
-      name: String(body.name).trim(),
+      name: normalizeCarName(body.name),
+      brand: String(body.brand || "").trim(),
+      model: String(body.model || "").trim(),
+      vehicleNumber: normalizeVehicleNumber(body.vehicleNumber),
       category: String(body.category).trim(),
-      seats: Number(body.seats || 4),
-      fuel: String(body.fuel || "").trim(),
-      luggage: String(body.luggage || "").trim(),
-      ratePerKm: Number(body.ratePerKm || 0),
-      dayRate: Number(body.dayRate || 0),
+      seats: normalizeSeatLabel(body.seats),
+      luggageCapacity,
+      ac: flagValue(body.ac, true),
+      fuelType,
+      fuel: fuelType,
+      luggage: luggageCapacity ? `${luggageCapacity} bags` : String(body.luggage || "").trim(),
+      localRate,
+      outstationRate,
+      extraKmRate: parseMoney(body.extraKmRate),
+      extraHourRate: parseMoney(body.extraHourRate),
+      ratePerKm: localRate,
+      dayRate: outstationRate,
       image: String(body.image || "").trim(),
+      description: String(body.description || "").trim(),
       features: normalizeArrayText(body.features),
       includedItems: normalizeArrayText(body.includedItems),
       extraCharges: normalizeArrayText(body.extraCharges),
       terms: normalizeArrayText(body.terms),
-      active: body.active !== false,
+      available: flagValue(body.available, true),
+      featured: flagValue(body.featured, false),
+      active: flagValue(body.active, true),
       createdAt: body.createdAt || now(),
       updatedAt: now()
     });
