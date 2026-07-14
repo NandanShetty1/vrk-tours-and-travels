@@ -228,16 +228,48 @@ function customerPublic(customer) {
   };
 }
 
-function firebaseCustomerPayload(decoded, body) {
+function firebaseCustomerPayload(decoded, body = {}) {
   const firebase = decoded.firebase || {};
+  const provider = String(firebase.sign_in_provider || body.provider || "firebase").trim();
+  const email = String(decoded.email || "").trim();
+  const emailVerified = Boolean(email && decoded.email_verified !== false);
+  const phone = String(decoded.phone_number || "").trim();
   return {
     uid: decoded.uid,
     name: String(body.displayName || decoded.name || "").trim(),
-    phone: String(decoded.phone_number || body.phone || "").trim(),
-    email: String(decoded.email || body.email || "").trim(),
+    phone,
+    email,
     photoURL: String(decoded.picture || "").trim(),
-    provider: String(firebase.sign_in_provider || body.provider || "firebase").trim()
+    provider,
+    phoneVerified: Boolean(phone),
+    emailVerified
   };
+}
+
+function customerAuthUids(customer) {
+  return Array.isArray(customer.authUids) ? customer.authUids : [];
+}
+
+function hasVerifiedCustomerPhone(customer) {
+  return Boolean(customer.phone && (customer.phoneVerified === true || customer.provider === "phone"));
+}
+
+function hasVerifiedCustomerEmail(customer) {
+  return Boolean(
+    customer.email &&
+      (customer.emailVerified === true ||
+        ["password", "emailLink", "google.com", "apple.com", "microsoft.com", "Google", "Apple", "Microsoft"].includes(customer.provider))
+  );
+}
+
+function findCustomerForAuth(store, payload) {
+  return store.customers.find((customer) => {
+    if (customer.deletedAt) return false;
+    if (customer.uid === payload.uid || customerAuthUids(customer).includes(payload.uid)) return true;
+    if (payload.phoneVerified && hasVerifiedCustomerPhone(customer) && customer.phone === payload.phone) return true;
+    if (payload.emailVerified && hasVerifiedCustomerEmail(customer) && customer.email === payload.email) return true;
+    return false;
+  });
 }
 
 function normalizeStore(store) {
@@ -514,7 +546,21 @@ async function handleApi(req, res) {
     normalizeStore(store);
     const mode = String(body.mode || "login");
     const payload = firebaseCustomerPayload(decoded, body);
-    const existing = store.customers.find((customer) => customer.uid === payload.uid && !customer.deletedAt);
+    const existing = findCustomerForAuth(store, payload);
+
+    if (mode === "create" && !payload.name) {
+      return sendJson(res, 400, {
+        error: "Enter customer name to create an account.",
+        code: "CUSTOMER_NAME_REQUIRED"
+      });
+    }
+
+    if (mode === "create" && !payload.phoneVerified && !payload.emailVerified) {
+      return sendJson(res, 400, {
+        error: "Create account using verified mobile OTP, email link, or Google.",
+        code: "VERIFIED_CONTACT_REQUIRED"
+      });
+    }
 
     if (mode === "create" && existing) {
       return sendJson(res, 409, {
@@ -534,11 +580,23 @@ async function handleApi(req, res) {
     const customer = existing || {
       id: id("CUS"),
       uid: payload.uid,
+      authUids: [payload.uid],
       createdAt: now()
     };
+    customer.authUids = Array.from(new Set([...customerAuthUids(customer), customer.uid, payload.uid].filter(Boolean)));
     customer.name = payload.name || customer.name || payload.phone || payload.email || "Customer";
-    customer.phone = payload.phone || customer.phone || "";
-    customer.email = payload.email || customer.email || "";
+    if (payload.phone) {
+      customer.phone = payload.phone;
+      customer.phoneVerified = payload.phoneVerified;
+    } else {
+      customer.phone = customer.phone || "";
+    }
+    if (payload.email) {
+      customer.email = payload.email;
+      customer.emailVerified = payload.emailVerified;
+    } else {
+      customer.email = customer.email || "";
+    }
     customer.photoURL = payload.photoURL || customer.photoURL || "";
     customer.provider = payload.provider || customer.provider || "firebase";
     customer.lastLoginAt = now();
@@ -556,7 +614,7 @@ async function handleApi(req, res) {
   if (req.method === "GET" && url.pathname === "/api/customers/me") {
     const decoded = await verifyCustomerToken(req);
     normalizeStore(store);
-    const customer = store.customers.find((item) => item.uid === decoded.uid && !item.deletedAt);
+    const customer = findCustomerForAuth(store, firebaseCustomerPayload(decoded));
     if (!customer) return sendError(res, 404, "No customer account found. Please create an account first");
     sendJson(res, 200, { customer: customerPublic(customer) });
     return;
@@ -565,7 +623,7 @@ async function handleApi(req, res) {
   if (req.method === "DELETE" && url.pathname === "/api/customers/me") {
     const decoded = await verifyCustomerToken(req);
     normalizeStore(store);
-    const customer = store.customers.find((item) => item.uid === decoded.uid && !item.deletedAt);
+    const customer = findCustomerForAuth(store, firebaseCustomerPayload(decoded));
     if (!customer) return sendError(res, 404, "Customer account not found");
     customer.deletedAt = now();
     customer.updatedAt = now();
