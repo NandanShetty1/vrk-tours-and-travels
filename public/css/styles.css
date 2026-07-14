@@ -659,9 +659,8 @@ textarea:focus {
 }
 
 .gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 18px;
+  display: block;
+  overflow: hidden;
 }
 
 .service-card,
@@ -794,29 +793,109 @@ textarea:focus {
   color: var(--gold);
 }
 
+.gallery-rail {
+  position: relative;
+  overflow: hidden;
+  padding: 2px 0 8px;
+}
+
+.gallery-rail::before,
+.gallery-rail::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: min(72px, 12vw);
+  pointer-events: none;
+}
+
+.gallery-rail::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--bg), transparent);
+}
+
+.gallery-rail::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--bg), transparent);
+}
+
+.gallery-track {
+  display: flex;
+  gap: 14px;
+  width: max-content;
+  will-change: transform;
+}
+
+.gallery-track.is-animated {
+  animation: gallerySlide var(--gallery-speed, 34s) linear infinite;
+}
+
+.gallery-rail:hover .gallery-track,
+.gallery-rail:focus-within .gallery-track {
+  animation-play-state: paused;
+}
+
 .gallery-card {
+  flex: 0 0 clamp(220px, 24vw, 320px);
   overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.gallery-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.13);
+}
+
+.gallery-media {
+  background: var(--surface-2);
 }
 
 .gallery-card img,
 .gallery-card video {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
+  max-height: 190px;
   object-fit: cover;
   background: var(--surface-2);
+  display: block;
 }
 
 .gallery-card > div {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: 7px;
+  padding: 12px;
 }
 
 .gallery-card p {
   margin-bottom: 0;
+  display: -webkit-box;
+  min-height: 42px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.gallery-card .tag-row span {
+  min-height: 24px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+
+@keyframes gallerySlide {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(-50% - 7px));
+  }
 }
 
 .site-footer {
