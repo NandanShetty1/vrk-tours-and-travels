@@ -142,6 +142,31 @@ async function main() {
       })
     });
 
+    const tourPackageResult = await request(base, "/api/admin/tour-packages", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        title: "Coorg Family Tour",
+        packageType: "Family tour",
+        days: 3,
+        nights: 2,
+        startingPlace: "Mangaluru",
+        destinations: "Madikeri, Abbey Falls, Raja Seat",
+        suitableVehicles: "Sedan, SUV, Tempo Traveller",
+        price: 12500,
+        driverAllowance: 500,
+        nightAllowance: 700,
+        tollParkingInfo: "Toll and parking as per actuals",
+        image: "https://example.com/coorg.jpg",
+        overview: "Owner planned multi-day tour package with clear vehicle and cost notes.",
+        inclusions: "Pickup and drop\nRoute planning\nDriver coordination",
+        exclusions: "Hotel stay\nFood and entry tickets",
+        itinerary: "Day 1: Pickup and Madikeri sightseeing\nDay 2: Abbey Falls and Raja Seat\nDay 3: Return trip",
+        terms: "Final vehicle and route are owner confirmed.",
+        active: true
+      })
+    });
+
     const dayPackageResult = await request(base, "/api/admin/day-packages", {
       method: "POST",
       headers: { "X-Admin-Pin": "1234" },
@@ -198,6 +223,12 @@ async function main() {
     });
 
     const publicAfterSetup = await request(base, "/api/public-data");
+
+    await request(base, `/api/admin/tourPackages/${tourPackageResult.item.id}/archive`, {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" }
+    });
+    const publicAfterTourArchive = await request(base, "/api/public-data");
 
     await request(base, `/api/admin/dayPackages/${dayPackageResult.item.id}/archive`, {
       method: "POST",
@@ -309,6 +340,8 @@ async function main() {
           pageStatuses,
           initialPublicCars: publicEmpty.cars.length,
           publicCarsAfterOwnerSetup: publicAfterSetup.cars.length,
+          publicTourPackagesAfterOwnerSetup: publicAfterSetup.tourPackages.length,
+          tourPackageHiddenPublicly: publicAfterTourArchive.tourPackages.length === 0,
           publicDayPackagesAfterOwnerSetup: publicAfterSetup.dayPackages.length,
           dayPackageHiddenPublicly: publicAfterDayArchive.dayPackages.length === 0,
           adminLogin: adminLogin.ok,
