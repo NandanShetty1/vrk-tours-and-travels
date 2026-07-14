@@ -1131,6 +1131,42 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.booking-ops {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 240px) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.booking-ops strong {
+  display: block;
+  color: var(--ink);
+}
+
+.booking-ops small {
+  color: var(--primary-dark);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.ops-progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.18);
+}
+
+.ops-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
 .booking-detail-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1151,6 +1187,47 @@ textarea:focus {
   margin-bottom: 4px;
   color: var(--ink);
   font-size: 0.8rem;
+}
+
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.booking-checklist {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.booking-checklist b,
+.booking-checklist small {
+  display: block;
+}
+
+.booking-checklist small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.checklist-grid .switch-row {
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 
 .note-line {
@@ -1365,6 +1442,11 @@ textarea:focus {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .booking-ops,
+  .checklist-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .customer-account {
     grid-template-columns: 1fr;
   }
@@ -1393,6 +1475,8 @@ textarea:focus {
   .form-grid,
   .track-form,
   .booking-detail-grid,
+  .booking-ops,
+  .checklist-grid,
   .metric-grid,
   .ticket-grid,
   .ticket-grid.two,
