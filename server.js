@@ -555,6 +555,29 @@ function itemBookingUsage(store, collectionName, itemId) {
   return [];
 }
 
+function defaultBookingChecks() {
+  return {
+    customerContacted: false,
+    routeVerified: false,
+    scheduleConfirmed: false,
+    vehicleChecked: false,
+    fareShared: false,
+    paymentChecked: false,
+    driverInformed: false,
+    tripCompleted: false
+  };
+}
+
+function bookingChecksFromBody(body, existing) {
+  const current = { ...defaultBookingChecks(), ...(existing || {}) };
+  Object.keys(current).forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      current[key] = flagValue(body[key], false);
+    }
+  });
+  return current;
+}
+
 function createBooking(store, payload) {
   requireFields(payload, ["customerName", "phone", "bookingType", "travelDate", "pickupLocation"]);
   const bookingType = String(payload.bookingType);
@@ -592,6 +615,7 @@ function createBooking(store, payload) {
     assignedCarId: bookingType === "car" ? payload.packageId || "" : "",
     paymentStatus: "waiting_for_amount",
     payment: null,
+    checks: defaultBookingChecks(),
     notes: "",
     createdAt: now(),
     updatedAt: now(),
@@ -1140,6 +1164,7 @@ async function handleApi(req, res) {
       (calculatedAmount > 0 && booking.paymentStatus === "waiting_for_amount"
         ? "payment_required"
         : booking.paymentStatus);
+    booking.checks = bookingChecksFromBody(body, booking.checks);
     booking.notes = String(body.notes || booking.notes || "");
     booking.updatedAt = now();
     booking.history.push({
