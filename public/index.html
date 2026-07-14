@@ -194,27 +194,31 @@
               <button data-auth-mode="signup" type="button">Create account</button>
             </div>
             <form id="customerLoginForm" class="form-grid compact">
-              <label>
+              <div class="segmented auth-method-tabs full" role="tablist" aria-label="Login method">
+                <button class="active" data-auth-method="phone" type="button">Mobile OTP</button>
+                <button data-auth-method="email" type="button">Email link</button>
+                <button data-auth-method="google" type="button">Google</button>
+              </div>
+              <label class="full auth-create-field">
                 Customer name
                 <input name="customerName" autocomplete="name">
               </label>
-              <label>
+              <label data-auth-field="phone">
                 Country
                 <select name="countryCode" aria-label="Country code">
                   <option value="+91">India +91</option>
                 </select>
               </label>
-              <label>
+              <label data-auth-field="phone">
                 India mobile number
                 <input name="phone" autocomplete="tel" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}" placeholder="9876543210">
               </label>
-              <label class="full">
+              <label class="full hidden" data-auth-field="email">
                 Email
                 <input name="email" type="email" autocomplete="email">
               </label>
               <div class="auth-action-grid full">
-                <button class="primary" data-auth-action="phone" type="button">Send mobile OTP</button>
-                <button class="secondary" data-auth-action="email" type="button">Send email login link</button>
+                <button class="primary full" id="authContinueButton" data-auth-action="continue" type="button">Login with mobile OTP</button>
               </div>
               <label class="full hidden" id="otpPanel">
                 Enter mobile OTP
@@ -224,12 +228,10 @@
               <div id="recaptchaContainer" class="recaptcha-box full"></div>
               <p class="form-message full" id="customerLoginMessage" role="status"></p>
             </form>
-            <div class="provider-login-row" aria-label="Social sign in options">
+            <div class="provider-login-row hidden" aria-label="Social sign in options">
               <button class="ghost" data-auth-provider="Google" type="button">Google</button>
-              <button class="ghost" data-auth-provider="Apple" type="button">Apple</button>
-              <button class="ghost" data-auth-provider="Microsoft" type="button">Microsoft</button>
             </div>
-            <p class="auth-note">Only verified OTP, email link, or OAuth login creates a customer session.</p>
+            <p class="auth-note">Choose the same mobile number or email used while creating the account. New customers must use Create account first.</p>
             <div id="customerAccountSummary" class="account-summary hidden"></div>
           </div>
         </section>
