@@ -10,6 +10,7 @@
       ready: false,
       configured: false,
       mode: "login",
+      method: "phone",
       confirmationResult: null,
       user: null,
       modules: null
@@ -33,6 +34,10 @@
   const customerAccountSummary = document.querySelector("#customerAccountSummary");
   const providerLoginRow = document.querySelector(".provider-login-row");
   const authModeButtons = Array.from(document.querySelectorAll("[data-auth-mode]"));
+  const authMethodButtons = Array.from(document.querySelectorAll("[data-auth-method]"));
+  const authFieldGroups = Array.from(document.querySelectorAll("[data-auth-field]"));
+  const authCreateFields = Array.from(document.querySelectorAll(".auth-create-field"));
+  const authContinueButton = document.querySelector("#authContinueButton");
   const otpPanel = document.querySelector("#otpPanel");
   const verifyOtpButton = document.querySelector("#verifyOtpButton");
   const recaptchaContainer = document.querySelector("#recaptchaContainer");
@@ -113,14 +118,23 @@
     return `${code}${local}`;
   }
 
-  function friendlyAuthError(error) {
+  function friendlyAuthError(error, method) {
     const code = error && error.code;
     const message = String((error && error.message) || "Login failed. Please try again.");
     if (code === "auth/operation-not-allowed") {
+      if (method === "phone") return "Mobile OTP is not enabled in Firebase Authentication. Enable Phone sign-in method.";
+      if (method === "email") return "Email link login is not enabled in Firebase Authentication. Enable Email/Password and Email link sign-in.";
+      if (method === "google") return "Google login is not enabled in Firebase Authentication. Enable Google sign-in method.";
       return "This login provider is not enabled in Firebase Authentication.";
     }
     if (code === "auth/unauthorized-domain") {
       return "Add this website domain in Firebase Authentication authorized domains.";
+    }
+    if (code === "auth/invalid-app-credential" || code === "auth/missing-app-credential") {
+      return "Mobile OTP security check failed. Add this website domain in Firebase authorized domains and enable Phone sign-in.";
+    }
+    if (code === "auth/too-many-requests" || code === "auth/quota-exceeded") {
+      return "Too many OTP attempts. Please wait and try again later.";
     }
     if (code === "auth/popup-blocked") {
       return "Popup was blocked. Allow popups for this website and try again.";
@@ -143,22 +157,54 @@
     return false;
   }
 
+  function authContinueLabel() {
+    const verb = state.auth.mode === "create" ? "Create account" : "Login";
+    if (state.auth.method === "email") return `${verb} with email link`;
+    if (state.auth.method === "google") return `${verb} with Google`;
+    return `${verb} with mobile OTP`;
+  }
+
+  function authStatusText() {
+    const action = state.auth.mode === "create" ? "Create account" : "Login";
+    if (state.auth.method === "email") return `${action} using a secure email link. Open the link in this same browser.`;
+    if (state.auth.method === "google") return `${action} using your Google account.`;
+    return `${action} using India mobile number OTP.`;
+  }
+
+  function refreshAuthControls() {
+    const isSignup = state.auth.mode === "create";
+    document.querySelector("#customer-account-title").textContent = isSignup
+      ? "Create customer account"
+      : "Login to customer account";
+    customerAccountStatus.textContent = authStatusText();
+    customerLoginForm.elements.customerName.required = isSignup;
+    authCreateFields.forEach((field) => field.classList.toggle("hidden", !isSignup));
+    authFieldGroups.forEach((field) => {
+      field.classList.toggle("hidden", field.dataset.authField !== state.auth.method);
+    });
+    providerLoginRow.classList.add("hidden");
+    authContinueButton.textContent = authContinueLabel();
+    authContinueButton.dataset.authAction = state.auth.method;
+    const useOtp = state.auth.method === "phone";
+    otpPanel.classList.toggle("hidden", !useOtp || !state.auth.confirmationResult);
+    verifyOtpButton.classList.toggle("hidden", !useOtp || !state.auth.confirmationResult);
+    if (!useOtp) state.auth.confirmationResult = null;
+  }
+
   function applyAuthMode(mode) {
-    const isSignup = mode === "create";
-    state.auth.mode = isSignup ? "create" : "login";
+    state.auth.mode = mode === "create" ? "create" : "login";
     authModeButtons.forEach((item) => {
       const itemMode = item.dataset.authMode === "signup" ? "create" : "login";
       item.classList.toggle("active", itemMode === state.auth.mode);
     });
-    document.querySelector("#customer-account-title").textContent = isSignup
-      ? "Create customer account"
-      : "Login to customer account";
-    customerAccountStatus.textContent = isSignup
-      ? "Create account with verified mobile OTP, email link, or Google."
-      : "Login with verified mobile OTP, email link, or Google.";
-    customerLoginForm.elements.customerName.required = isSignup;
-    document.querySelector('[data-auth-action="phone"]').textContent = isSignup ? "Create with mobile OTP" : "Login with mobile OTP";
-    document.querySelector('[data-auth-action="email"]').textContent = isSignup ? "Create with email link" : "Login with email link";
+    refreshAuthControls();
+  }
+
+  function applyAuthMethod(method) {
+    state.auth.method = ["phone", "email", "google"].includes(method) ? method : "phone";
+    authMethodButtons.forEach((item) => item.classList.toggle("active", item.dataset.authMethod === state.auth.method));
+    state.auth.confirmationResult = null;
+    refreshAuthControls();
   }
 
   async function firebaseIdToken() {
@@ -257,7 +303,7 @@
         } catch (error) {
           localStorage.removeItem("vrkEmailLogin");
           window.history.replaceState({}, document.title, window.location.pathname);
-          setAuthMessage(friendlyAuthError(error), "danger");
+          setAuthMessage(friendlyAuthError(error, "email"), "danger");
         }
       }
     }
@@ -267,15 +313,19 @@
     const profile = state.customerProfile;
     if (!profile) {
       customerAccountStatus.textContent = state.auth.configured
-        ? "Login or create account with verified mobile OTP, email link, or OAuth."
+        ? "Login or create account with verified mobile OTP, email link, or Google."
         : "Secure customer login needs Firebase keys before customers can sign in.";
       accountButtonLabel.textContent = "Sign in";
       accountAvatar.textContent = "?";
       accountButton.classList.remove("signed-in");
       customerLoginForm.classList.remove("hidden");
-      providerLoginRow.classList.remove("hidden");
+      providerLoginRow.classList.add("hidden");
       customerAccountSummary.classList.add("hidden");
       customerAccountSummary.innerHTML = "";
+      refreshAuthControls();
+      if (!state.auth.configured) {
+        customerAccountStatus.textContent = "Secure customer login needs Firebase keys before customers can sign in.";
+      }
       return;
     }
     const name = profile.customerName || profile.name || "Customer";
@@ -699,8 +749,14 @@
 
   customerLoginForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    setAuthMessage("Use mobile OTP, email link, or social login to continue securely.", "active");
+    continueCustomerAuth().catch((error) => setAuthMessage(friendlyAuthError(error, state.auth.method), "danger"));
   });
+
+  function continueCustomerAuth() {
+    if (state.auth.method === "email") return sendEmailLink();
+    if (state.auth.method === "google") return signInWithProvider("Google");
+    return sendPhoneOtp();
+  }
 
   async function sendPhoneOtp() {
     if (!state.auth.configured) {
@@ -779,7 +835,7 @@
         provider: "emailLink"
       })
     );
-    setAuthMessage("Secure login link sent to email. Open that email link in this browser.", "good");
+    setAuthMessage("Secure email link sent. Check Inbox and Spam, then open that link in this same browser.", "good");
   }
 
   async function signInWithProvider(providerName) {
@@ -837,6 +893,13 @@
     });
   });
 
+  authMethodButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      applyAuthMethod(button.dataset.authMethod);
+      setAuthMessage("", "");
+    });
+  });
+
   document.body.addEventListener("click", (event) => {
     const selectButton = event.target.closest("[data-select]");
     const detailsButton = event.target.closest("[data-details]");
@@ -867,14 +930,12 @@
     if (openButton) openBookingModal();
 
     if (authAction) {
-      const action = authAction.dataset.authAction;
-      const task = action === "email" ? sendEmailLink() : sendPhoneOtp();
-      task.catch((error) => setAuthMessage(friendlyAuthError(error), "danger"));
+      continueCustomerAuth().catch((error) => setAuthMessage(friendlyAuthError(error, state.auth.method), "danger"));
     }
 
     if (providerButton) {
       signInWithProvider(providerButton.dataset.authProvider).catch((error) =>
-        setAuthMessage(friendlyAuthError(error), "danger")
+        setAuthMessage(friendlyAuthError(error, "google"), "danger")
       );
     }
 
@@ -883,7 +944,7 @@
   });
 
   verifyOtpButton.addEventListener("click", () => {
-    verifyPhoneOtp().catch((error) => setAuthMessage(friendlyAuthError(error), "danger"));
+    verifyPhoneOtp().catch((error) => setAuthMessage(friendlyAuthError(error, "phone"), "danger"));
   });
 
   heroCarousel.addEventListener("keydown", (event) => {
