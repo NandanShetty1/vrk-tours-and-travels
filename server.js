@@ -983,9 +983,11 @@ async function handleApi(req, res) {
       image: String(body.image || "").trim(),
       overview: String(body.overview || "").trim(),
       highlights: normalizeArrayText(body.highlights),
+      inclusions: normalizeArrayText(body.inclusions || body.highlights),
       exclusions: normalizeArrayText(body.exclusions),
+      itinerary: normalizeArrayText(body.itinerary),
       terms: normalizeArrayText(body.terms),
-      active: body.active !== false,
+      active: flagValue(body.active, true),
       createdAt: body.createdAt || now(),
       updatedAt: now()
     });
