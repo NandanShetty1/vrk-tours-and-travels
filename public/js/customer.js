@@ -408,7 +408,7 @@
         type: "tour",
         eyebrow: "Tour packages",
         title: "Multi-day tour packages",
-        note: "Package cards show destination, duration, inclusions, exclusions, and owner-set starting price.",
+        note: "Package cards show days, nights, start place, destinations, vehicles, allowances, toll notes, and owner-set starting price.",
         empty: "Owner has not published active tour packages yet."
       },
       {
@@ -506,6 +506,40 @@
     ].filter(Boolean);
   }
 
+  function tourDuration(item) {
+    const days = Number(item.days || item.numberOfDays || 0);
+    const nights = Number(item.nights || item.numberOfNights || 0);
+    if (days || nights) {
+      return [
+        days ? `${days} day${days === 1 ? "" : "s"}` : "",
+        nights ? `${nights} night${nights === 1 ? "" : "s"}` : ""
+      ]
+        .filter(Boolean)
+        .join(" / ");
+    }
+    return item.duration || "Ask owner";
+  }
+
+  function tourDestinations(item) {
+    return item.destinations || item.destination || "Owner customizes";
+  }
+
+  function moneyOrOwner(value, fallback = "Owner confirms") {
+    const amount = Number(value || 0);
+    return amount ? VRK.money(amount) : fallback;
+  }
+
+  function tourPlanningDetails(item) {
+    return [
+      item.startingPlace ? `Starting place: ${item.startingPlace}` : "",
+      `Destinations: ${tourDestinations(item)}`,
+      item.suitableVehicles ? `Suitable vehicles: ${item.suitableVehicles}` : "",
+      `Driver allowance: ${moneyOrOwner(item.driverAllowance, "Owner confirms")}`,
+      `Night allowance: ${moneyOrOwner(item.nightAllowance, "Owner confirms")}`,
+      `Toll and parking: ${item.tollParkingInfo || "Owner confirms before trip"}`
+    ].filter(Boolean);
+  }
+
   function detailForItem(item) {
     const kind = kindForItem(item);
     if (kind === "car") {
@@ -521,13 +555,16 @@
         .join(" | ");
     }
     if (kind === "tour") {
-      return `${item.packageType || "Tour"} | ${item.destination || "Destination"} | ${item.duration || "Duration"}`;
+      return [item.packageType || "Tour", item.startingPlace || "Start place", tourDestinations(item), tourDuration(item)]
+        .filter(Boolean)
+        .join(" | ");
     }
     return `${item.packageType || "One day"} | ${item.place || "Place"} | ${item.hours || "Hours"}`;
   }
 
   function tagsForItem(item) {
-    if (kindForItem(item) === "car") {
+    const kind = kindForItem(item);
+    if (kind === "car") {
       const generated = [
         item.featured ? "Featured" : "",
         availabilityLabel(item),
@@ -537,7 +574,13 @@
       ].filter(Boolean);
       return [...generated, ...(item.features || [])];
     }
-    if (kindForItem(item) === "day") {
+    if (kind === "tour") {
+      const generated = [item.packageType || "Tour", tourDuration(item), item.startingPlace || "", item.suitableVehicles || ""].filter(
+        Boolean
+      );
+      return [...generated, ...(item.inclusions || [])];
+    }
+    if (kind === "day") {
       const generated = [item.packageType || "One day", item.place || "", item.hours || ""].filter(Boolean);
       return [...generated, ...(item.highlights || item.inclusions || [])];
     }
@@ -564,10 +607,10 @@
     }
     if (kind === "tour") {
       return [
-        ["Destination", item.destination || "Custom"],
-        ["Duration", item.duration || "Ask owner"],
-        ["Type", item.packageType || "Tour"],
-        ["Starts from", VRK.money(item.price || 0)]
+        ["Number of days", item.days ? String(item.days) : tourDuration(item)],
+        ["Number of nights", item.nights || item.nights === 0 ? String(item.nights) : "Ask owner"],
+        ["Starting place", item.startingPlace || "Owner confirms"],
+        ["Suitable vehicles", item.suitableVehicles || "Owner suggests"]
       ];
     }
     return [
@@ -603,6 +646,29 @@
         <span>
           <small>Places covered</small>
           <b>${VRK.escapeHtml(item.place || "Owner confirms")}</b>
+        </span>
+      </div>
+    `;
+  }
+
+  function tourPlanStrip(item) {
+    return `
+      <div class="tour-plan-strip">
+        <span>
+          <small>Starting package price</small>
+          <b>${VRK.escapeHtml(VRK.money(item.price || 0))}</b>
+        </span>
+        <span>
+          <small>Destinations covered</small>
+          <b>${VRK.escapeHtml(tourDestinations(item))}</b>
+        </span>
+        <span>
+          <small>Driver allowance</small>
+          <b>${VRK.escapeHtml(moneyOrOwner(item.driverAllowance, "Owner confirms"))}</b>
+        </span>
+        <span>
+          <small>Toll and parking</small>
+          <b>${VRK.escapeHtml(item.tollParkingInfo || "As per actuals")}</b>
         </span>
       </div>
     `;
@@ -747,6 +813,7 @@
               .join("")}
           </div>
           ${kind === "car" ? carRateStrip(item) : ""}
+          ${kind === "tour" ? tourPlanStrip(item) : ""}
           ${kind === "day" ? dayPackageStrip(item) : ""}
           <div class="tag-row">
             ${(tags.length ? tags : [serviceLabel(item)]).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
@@ -797,12 +864,14 @@
           : ""
       }
       ${kindForItem(service) === "car" ? carRateStrip(service) : ""}
+      ${kindForItem(service) === "tour" ? tourPlanStrip(service) : ""}
       ${kindForItem(service) === "day" ? dayPackageStrip(service) : ""}
       ${kindForItem(service) === "car" ? itemList("Car details", carDetailsForItem(service)) : ""}
       ${kindForItem(service) === "car" ? itemList("Rate details", carRateDetails(service)) : ""}
+      ${kindForItem(service) === "tour" ? itemList("Tour plan", tourPlanningDetails(service)) : ""}
       ${itemList("Included", includedForItem(service))}
       ${itemList("Extra charges / excluded", excludedForItem(service))}
-      ${itemList("Itinerary", service.itinerary)}
+      ${itemList(kindForItem(service) === "tour" ? "Day wise itinerary" : "Itinerary", service.itinerary)}
       ${itemList("Terms and conditions", service.terms)}
     `;
     infoBook.classList.remove("hidden");
