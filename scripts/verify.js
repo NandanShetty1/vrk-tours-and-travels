@@ -168,6 +168,15 @@ async function main() {
       headers: { "X-Admin-Pin": "1234" }
     });
 
+    await request(base, `/api/admin/cars/${carResult.item.id}/archive`, {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" }
+    });
+    const shownCar = await request(base, `/api/admin/cars/${carResult.item.id}/show`, {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" }
+    });
+
     const publicAfterSetup = await request(base, "/api/public-data");
 
     const created = await request(base, "/api/bookings", {
@@ -268,6 +277,7 @@ async function main() {
           publicCarsAfterOwnerSetup: publicAfterSetup.cars.length,
           adminLogin: adminLogin.ok,
           deletedUnusedCar: deletedTempCar.ok,
+          shownHiddenCar: shownCar.item.active,
           deleteBookedCarStatus,
           bookingId: created.booking.id,
           ownerConfirmedAmount: confirmed.booking.amount,
