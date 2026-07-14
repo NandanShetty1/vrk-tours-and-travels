@@ -82,7 +82,7 @@
     state.customerProfile = null;
     sessionStorage.removeItem("vrkCustomerProfile");
     renderCustomerAccount();
-    if (previous && customerLoginForm.elements) {
+    if (previous && customerLoginForm && customerLoginForm.elements) {
       customerLoginForm.elements.customerName.value = previous.customerName || "";
       customerLoginForm.elements.phone.value = localIndiaPhone(previous.phone);
       customerLoginForm.elements.email.value = previous.email || "";
@@ -103,6 +103,7 @@
   }
 
   function setAuthMessage(message, tone) {
+    if (!customerLoginMessage) return;
     VRK.setMessage(customerLoginMessage, message, tone || "");
   }
 
@@ -127,6 +128,9 @@
       if (method === "google") return "Google login is not enabled in Firebase Authentication. Enable Google sign-in method.";
       return "This login provider is not enabled in Firebase Authentication.";
     }
+    if (code === "auth/billing-not-enabled") {
+      return "Mobile OTP needs Firebase billing enabled for real SMS. Use Google/email login now, or upgrade Firebase to Blaze and try again.";
+    }
     if (code === "auth/unauthorized-domain") {
       return "Add this website domain in Firebase Authentication authorized domains.";
     }
@@ -146,6 +150,7 @@
   }
 
   function customerNameValue() {
+    if (!customerLoginForm) return "";
     return String(customerLoginForm.elements.customerName.value || "").trim();
   }
 
@@ -172,10 +177,10 @@
   }
 
   function refreshAuthControls() {
+    if (!customerLoginForm || !customerAccountStatus || !authContinueButton || !otpPanel || !verifyOtpButton) return;
     const isSignup = state.auth.mode === "create";
-    document.querySelector("#customer-account-title").textContent = isSignup
-      ? "Create customer account"
-      : "Login to customer account";
+    const title = document.querySelector("#customer-account-title");
+    if (title) title.textContent = isSignup ? "Create customer account" : "Login to customer account";
     customerAccountStatus.textContent = authStatusText();
     customerLoginForm.elements.customerName.required = isSignup;
     authCreateFields.forEach((field) => field.classList.toggle("hidden", !isSignup));
@@ -310,6 +315,7 @@
   }
 
   function renderCustomerAccount() {
+    if (!accountButton || !customerLoginForm || !customerAccountStatus || !providerLoginRow || !customerAccountSummary) return;
     const profile = state.customerProfile;
     if (!profile) {
       customerAccountStatus.textContent = state.auth.configured
@@ -349,10 +355,12 @@
   }
 
   function openAccountModal() {
+    if (!accountModal) return;
     accountModal.classList.remove("hidden");
   }
 
   function closeAccountModal() {
+    if (!accountModal) return;
     accountModal.classList.add("hidden");
   }
 
@@ -696,14 +704,6 @@
   function bindBookingForm(form, messageElement) {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (state.auth.configured && (!state.customerProfile || !state.auth.user)) {
-        openAccountModal();
-        setAuthMessage(
-          "Please login or create an account before booking.",
-          "danger"
-        );
-        return;
-      }
       updateFormSelection(form);
       const submitButton = form.querySelector("button[type='submit']");
       const statusElement = messageElement || form.querySelector(".form-message");
@@ -714,10 +714,8 @@
         const payload = VRK.formToObject(form);
         payload.passengers = Number(payload.passengers || 1);
         payload.amount = Number(payload.amount || 0);
-        const token = await firebaseIdToken();
         const result = await VRK.request("/api/bookings", {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: JSON.stringify(payload)
         });
         VRK.setMessage(
@@ -747,10 +745,12 @@
     });
   });
 
-  customerLoginForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    continueCustomerAuth().catch((error) => setAuthMessage(friendlyAuthError(error, state.auth.method), "danger"));
-  });
+  if (customerLoginForm) {
+    customerLoginForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      continueCustomerAuth().catch((error) => setAuthMessage(friendlyAuthError(error, state.auth.method), "danger"));
+    });
+  }
 
   function continueCustomerAuth() {
     if (state.auth.method === "email") return sendEmailLink();
@@ -881,11 +881,13 @@
     setAuthMessage("Account deleted.", "good");
   }
 
-  accountButton.addEventListener("click", openAccountModal);
-  accountClose.addEventListener("click", closeAccountModal);
-  accountModal.addEventListener("click", (event) => {
-    if (event.target === accountModal) closeAccountModal();
-  });
+  if (accountButton && accountClose && accountModal) {
+    accountButton.addEventListener("click", openAccountModal);
+    accountClose.addEventListener("click", closeAccountModal);
+    accountModal.addEventListener("click", (event) => {
+      if (event.target === accountModal) closeAccountModal();
+    });
+  }
 
   authModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -943,9 +945,11 @@
     if (customerDelete) deleteCustomerAccount().catch((error) => setAuthMessage(error.message, "danger"));
   });
 
-  verifyOtpButton.addEventListener("click", () => {
-    verifyPhoneOtp().catch((error) => setAuthMessage(friendlyAuthError(error, "phone"), "danger"));
-  });
+  if (verifyOtpButton) {
+    verifyOtpButton.addEventListener("click", () => {
+      verifyPhoneOtp().catch((error) => setAuthMessage(friendlyAuthError(error, "phone"), "danger"));
+    });
+  }
 
   heroCarousel.addEventListener("keydown", (event) => {
     if (!["Enter", " "].includes(event.key)) return;
@@ -1132,15 +1136,6 @@
 
   bindBookingForm(bookingForm, bookingMessage);
   bindBookingForm(modalBookingForm);
-  applyAuthMode("login");
-  state.customerProfile = loadCustomerProfile();
-  renderCustomerAccount();
-  setupFirebaseAuth().catch((error) => {
-    state.auth.ready = true;
-    state.auth.configured = false;
-    renderCustomerAccount();
-    setAuthMessage(error.message, "danger");
-  });
   VRK.watchLiveChanges(load);
   load().catch((error) => {
     catalog.innerHTML = `<div class="empty-state">${VRK.escapeHtml(error.message)}</div>`;
