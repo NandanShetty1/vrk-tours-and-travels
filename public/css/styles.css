@@ -1004,13 +1004,15 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
-.car-rate-strip {
+.car-rate-strip,
+.package-price-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.car-rate-strip span {
+.car-rate-strip span,
+.package-price-strip span {
   min-height: 58px;
   padding: 9px 10px;
   border: 1px solid rgba(194, 65, 12, 0.16);
@@ -1019,18 +1021,22 @@ textarea:focus {
 }
 
 .car-rate-strip small,
-.car-rate-strip b {
+.car-rate-strip b,
+.package-price-strip small,
+.package-price-strip b {
   display: block;
 }
 
-.car-rate-strip small {
+.car-rate-strip small,
+.package-price-strip small {
   margin-bottom: 4px;
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 900;
 }
 
-.car-rate-strip b {
+.car-rate-strip b,
+.package-price-strip b {
   color: var(--accent);
   font-size: 0.9rem;
   overflow-wrap: anywhere;
@@ -1386,9 +1392,54 @@ textarea:focus {
   padding: 16px;
 }
 
+.admin-row-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.admin-thumb {
+  width: 86px;
+  height: 64px;
+  flex: 0 0 86px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
 .admin-row h3,
 .admin-row p {
   margin-bottom: 4px;
+}
+
+.image-upload-field {
+  gap: 9px;
+}
+
+.image-upload-field small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.image-upload-input {
+  padding: 9px;
+  background: var(--surface-2);
+}
+
+.image-preview {
+  width: min(280px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.image-preview img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
 }
 
 .admin-row.muted {
@@ -1771,6 +1822,7 @@ textarea:focus {
   .booking-ops,
   .checklist-grid,
   .car-rate-strip,
+  .package-price-strip,
   .metric-grid,
   .ticket-grid,
   .ticket-grid.two,
@@ -1801,6 +1853,10 @@ textarea:focus {
   .account-summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-row-main {
+    align-items: flex-start;
   }
 
   h1 {
