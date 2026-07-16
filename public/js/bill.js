@@ -24,6 +24,45 @@
     )}`;
   }
 
+  const tripTypeLabels = {
+    local_rental: "Local rental",
+    one_way: "One way",
+    round_trip: "Round trip",
+    one_day_package: "One day package",
+    multi_day_package: "Multi day package",
+    airport_transfer: "Airport transfer",
+    custom_trip: "Custom trip"
+  };
+
+  function listText(value) {
+    if (Array.isArray(value)) return value.join(" | ");
+    return value || "";
+  }
+
+  function tripDetails(booking) {
+    return [
+      ["Trip type", tripTypeLabels[booking.tripType] || "Custom trip"],
+      ["Pickup time", booking.pickupTime],
+      ["WhatsApp", booking.whatsappNumber],
+      ["Luggage", booking.luggageCount || booking.luggageCount === 0 ? `${booking.luggageCount}` : ""],
+      ["Vehicle preference", booking.vehiclePreference],
+      ["Stops", listText(booking.multipleDestinations)],
+      ["Local rental", booking.localRentalPackage],
+      ["Days", booking.numberOfDays ? `${booking.numberOfDays}` : ""],
+      ["Airport", booking.airportName],
+      ["Flight", booking.flightNumber],
+      ["Terminal", booking.terminal],
+      ["Flight time", booking.flightTime],
+      ["Custom route", listText(booking.customDestinations)],
+      ["Budget", booking.budget ? VRK.money(booking.budget) : ""],
+      ["Special requirements", booking.specialRequirements]
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+  }
+
+  function detailList(details) {
+    return details.map(([label, value]) => `<p><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</p>`).join("");
+  }
+
   function render(data) {
     const { business, booking } = data;
     const invoiceNo = `${business.invoicePrefix || "VRK"}-${booking.id}`;
@@ -65,6 +104,7 @@
             <h2>Journey</h2>
             <p><b>Service</b>${VRK.escapeHtml(booking.packageTitle)}</p>
             <p><b>Travel date</b>${VRK.dateLabel(booking.travelDate)}</p>
+            <p><b>Pickup time</b>${VRK.escapeHtml(booking.pickupTime || "Not added")}</p>
             <p><b>Pickup</b>${VRK.escapeHtml(booking.pickupLocation)}</p>
             <p><b>Drop</b>${VRK.escapeHtml(booking.dropLocation || "Not added")}</p>
           </article>
@@ -74,6 +114,17 @@
             <p><b>Driver</b>${VRK.escapeHtml(booking.driver ? booking.driver.name : "Not assigned")}</p>
             <p><b>Driver phone</b>${VRK.escapeHtml(booking.driver ? booking.driver.phone : "Not assigned")}</p>
             <p><b>Payment</b>${VRK.escapeHtml(paymentLine(booking))}</p>
+          </article>
+        </section>
+
+        <section class="ticket-grid two">
+          <article>
+            <h2>Trip Details</h2>
+            ${detailList(tripDetails(booking))}
+          </article>
+          <article>
+            <h2>Customer Notes</h2>
+            <p>${VRK.escapeHtml(booking.message || "No extra notes added")}</p>
           </article>
         </section>
 

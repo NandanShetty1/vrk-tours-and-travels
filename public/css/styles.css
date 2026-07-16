@@ -500,6 +500,56 @@ p {
   gap: 10px;
 }
 
+.booking-form-upgrade {
+  display: block;
+}
+
+.booking-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.trip-type-field select {
+  min-height: 50px;
+  border-color: rgba(15, 118, 110, 0.34);
+  background: rgba(15, 118, 110, 0.06);
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.trip-dynamic-panel {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  border: 1px solid rgba(15, 118, 110, 0.24);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.trip-dynamic-panel legend {
+  padding: 0 6px;
+  color: var(--primary-dark);
+  font-weight: 900;
+}
+
+.form-help {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.terms-check {
+  min-height: 50px;
+  padding: 12px;
+  border: 1px solid rgba(194, 65, 12, 0.18);
+  border-radius: 8px;
+  background: rgba(194, 65, 12, 0.07);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .full {
   grid-column: 1 / -1;
 }
@@ -2126,6 +2176,7 @@ textarea:focus {
   }
 
   .form-grid,
+  .booking-extra-grid,
   .track-form,
   .quick-promise-grid,
   .hero-stat-row,

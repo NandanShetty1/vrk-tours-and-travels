@@ -54,6 +54,49 @@
     });
   }
 
+  const tripTypeLabels = {
+    local_rental: "Local rental",
+    one_way: "One way",
+    round_trip: "Round trip",
+    one_day_package: "One day package",
+    multi_day_package: "Multi day package",
+    airport_transfer: "Airport transfer",
+    custom_trip: "Custom trip"
+  };
+
+  function listText(value) {
+    if (Array.isArray(value)) return value.join(" | ");
+    return value || "";
+  }
+
+  function tripTypeLabel(booking) {
+    return tripTypeLabels[booking.tripType] || "Custom trip";
+  }
+
+  function driverTripDetails(booking) {
+    return [
+      ["Trip type", tripTypeLabel(booking)],
+      ["Pickup time", booking.pickupTime],
+      ["WhatsApp", booking.whatsappNumber],
+      ["Luggage", booking.luggageCount || booking.luggageCount === 0 ? `${booking.luggageCount}` : ""],
+      ["Vehicle preference", booking.vehiclePreference],
+      ["Stops", listText(booking.multipleDestinations)],
+      ["Local rental", booking.localRentalPackage],
+      ["Days", booking.numberOfDays ? `${booking.numberOfDays}` : ""],
+      ["Airport", booking.airportName],
+      ["Airport type", booking.airportTripMode],
+      ["Flight", booking.flightNumber],
+      ["Terminal", booking.terminal],
+      ["Flight time", booking.flightTime],
+      ["Custom route", listText(booking.customDestinations)],
+      ["Special requirements", booking.specialRequirements]
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+  }
+
+  function detailSpans(details) {
+    return details.map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`).join("");
+  }
+
   function renderTrip(booking) {
     return `
       <article class="booking-card">
@@ -61,7 +104,9 @@
           <div>
             <span class="badge ${VRK.statusClass(booking.status)}">${VRK.statusLabel(booking.status)}</span>
             <h3>${VRK.escapeHtml(booking.packageTitle)}</h3>
-            <p>${VRK.dateLabel(booking.travelDate)} | ${VRK.escapeHtml(booking.passengers)} passengers</p>
+            <p>${VRK.dateLabel(booking.travelDate)} | ${VRK.escapeHtml(booking.passengers)} passengers | ${VRK.escapeHtml(
+      tripTypeLabel(booking)
+    )}</p>
           </div>
           <strong>${VRK.money(booking.amount)}</strong>
         </div>
@@ -70,6 +115,7 @@
           <span><b>Pickup</b>${VRK.escapeHtml(booking.pickupLocation)}</span>
           <span><b>Drop</b>${VRK.escapeHtml(booking.dropLocation || "Not added")}</span>
           <span><b>Car</b>${VRK.escapeHtml(booking.car ? booking.car.name : "Not assigned")}</span>
+          ${detailSpans(driverTripDetails(booking))}
         </div>
         ${booking.message ? `<p class="note-line">${VRK.escapeHtml(booking.message)}</p>` : ""}
         <form class="form-grid compact" data-booking-id="${VRK.escapeHtml(booking.id)}">

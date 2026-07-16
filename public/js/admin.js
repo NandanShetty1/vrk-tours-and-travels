@@ -241,6 +241,52 @@
     return "One day package";
   }
 
+  const tripTypeLabels = {
+    local_rental: "Local rental",
+    one_way: "One way",
+    round_trip: "Round trip",
+    one_day_package: "One day package",
+    multi_day_package: "Multi day package",
+    airport_transfer: "Airport transfer",
+    custom_trip: "Custom trip"
+  };
+
+  function tripTypeLabel(booking) {
+    return tripTypeLabels[booking.tripType] || "Custom trip";
+  }
+
+  function listText(value) {
+    if (Array.isArray(value)) return value.join(" | ");
+    return value || "";
+  }
+
+  function bookingTripDetails(booking) {
+    return [
+      ["Trip type", tripTypeLabel(booking)],
+      ["WhatsApp", booking.whatsappNumber || booking.phone],
+      ["Pickup time", booking.pickupTime],
+      ["Luggage", booking.luggageCount || booking.luggageCount === 0 ? `${booking.luggageCount}` : ""],
+      ["Vehicle preference", booking.vehiclePreference],
+      ["Stops / destinations", listText(booking.multipleDestinations)],
+      ["Local rental slab", booking.localRentalPackage],
+      ["Days", booking.numberOfDays ? `${booking.numberOfDays}` : ""],
+      ["Airport type", booking.airportTripMode],
+      ["Airport", booking.airportName],
+      ["Flight", booking.flightNumber],
+      ["Terminal", booking.terminal],
+      ["Flight time", booking.flightTime],
+      ["Custom route", listText(booking.customDestinations)],
+      ["Budget", booking.budget ? VRK.money(booking.budget) : ""],
+      ["Special requirements", booking.specialRequirements]
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+  }
+
+  function bookingDetailSpans(details) {
+    return details
+      .map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`)
+      .join("");
+  }
+
   function options(items, selectedId, labelField) {
     return [
       `<option value="">Not assigned</option>`,
@@ -301,15 +347,16 @@
 
   function contactLinks(booking) {
     const phone = phoneDigits(booking.phone);
-    if (!phone) return "";
-    const whatsAppPhone = phone.length === 10 ? `91${phone}` : phone;
+    const whatsAppNumber = phoneDigits(booking.whatsappNumber || booking.phone);
+    if (!phone && !whatsAppNumber) return "";
+    const whatsAppPhone = whatsAppNumber.length === 10 ? `91${whatsAppNumber}` : whatsAppNumber;
     const message = encodeURIComponent(
       `Namaste ${booking.customerName}, this is VRK Tours and Travels about booking ${booking.id} for ${booking.packageTitle}.`
     );
     return `
       <div class="contact-actions">
-        <a class="ghost ticket-link" href="tel:${phone}">Call</a>
-        <a class="ghost ticket-link" href="https://wa.me/${whatsAppPhone}?text=${message}" target="_blank" rel="noopener">WhatsApp</a>
+        ${phone ? `<a class="ghost ticket-link" href="tel:${phone}">Call</a>` : ""}
+        ${whatsAppPhone ? `<a class="ghost ticket-link" href="https://wa.me/${whatsAppPhone}?text=${message}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
       </div>
     `;
   }
@@ -393,12 +440,15 @@
         <div class="booking-detail-grid">
           <span><b>Customer</b>${VRK.escapeHtml(booking.customerName)} / ${VRK.escapeHtml(booking.phone)}</span>
           <span><b>Email</b>${VRK.escapeHtml(booking.email || "Not added")}</span>
+          <span><b>Trip type</b>${VRK.escapeHtml(tripTypeLabel(booking))}</span>
+          <span><b>Pickup time</b>${VRK.escapeHtml(booking.pickupTime || "Not added")}</span>
           <span><b>Pickup</b>${VRK.escapeHtml(booking.pickupLocation)}</span>
           <span><b>Drop</b>${VRK.escapeHtml(booking.dropLocation || "Not added")}</span>
           <span><b>Return</b>${VRK.escapeHtml(booking.returnDate ? VRK.dateLabel(booking.returnDate) : "One way / not added")}</span>
           <span><b>Driver</b>${VRK.escapeHtml(driver ? driver.name : "Not assigned")}</span>
           <span><b>Car</b>${VRK.escapeHtml(car ? car.name : "Not assigned")}</span>
           <span><b>Created</b>${VRK.dateTimeLabel(booking.createdAt)}</span>
+          ${bookingDetailSpans(bookingTripDetails(booking).filter(([label]) => !["Trip type", "Pickup time", "WhatsApp"].includes(label)))}
         </div>
         ${contactLinks(booking)}
         ${booking.message ? `<p class="note-line">${VRK.escapeHtml(booking.message)}</p>` : ""}

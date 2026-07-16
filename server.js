@@ -578,29 +578,97 @@ function bookingChecksFromBody(body, existing) {
   return current;
 }
 
+const TRIP_TYPES = new Set([
+  "local_rental",
+  "one_way",
+  "round_trip",
+  "one_day_package",
+  "multi_day_package",
+  "airport_transfer",
+  "custom_trip"
+]);
+
+function defaultTripType(bookingType) {
+  if (bookingType === "tour") return "multi_day_package";
+  if (bookingType === "day") return "one_day_package";
+  return "one_way";
+}
+
+function normalizeTripType(value, bookingType) {
+  const tripType = String(value || defaultTripType(bookingType)).trim();
+  if (!TRIP_TYPES.has(tripType)) {
+    throw validationError("Select a valid trip type");
+  }
+  return tripType;
+}
+
 function createBooking(store, payload) {
-  requireFields(payload, ["customerName", "phone", "bookingType", "travelDate", "pickupLocation"]);
+  const effectiveTravelDate = String(payload.travelDate || payload.departureDate || "").trim();
+  const effectiveReturnDate = String(payload.returnDate || payload.tripReturnDate || "").trim();
+  requireFields(
+    { ...payload, travelDate: effectiveTravelDate },
+    ["customerName", "phone", "bookingType", "travelDate", "pickupLocation", "whatsappNumber", "pickupTime"]
+  );
   const bookingType = String(payload.bookingType);
   if (!["car", "tour", "day"].includes(bookingType)) {
     const err = new Error("Booking type must be car, tour, or day");
     err.status = 422;
     throw err;
   }
+  const tripType = normalizeTripType(payload.tripType, bookingType);
+  if (!flagValue(payload.termsAccepted, false)) {
+    throw validationError("Accept booking terms before sending request");
+  }
+  if (tripType === "local_rental") {
+    requireFields(payload, ["localRentalPackage"]);
+  }
+  if (tripType === "round_trip") {
+    requireFields(
+      { ...payload, returnDate: effectiveReturnDate, numberOfDays: payload.numberOfDays || payload.customNumberOfDays || payload.noOfDays },
+      ["returnDate", "numberOfDays"]
+    );
+  }
+  if (tripType === "airport_transfer") {
+    requireFields(payload, ["airportTripMode", "airportName", "flightTime"]);
+  }
+  if (tripType === "custom_trip") {
+    requireFields({ ...payload, customDestinations: normalizeArrayText(payload.customDestinations).join("\n") }, ["customDestinations"]);
+  }
   const item = selectedItem(store, bookingType, payload.packageId || "");
+  const numberOfDays = parseInteger(payload.numberOfDays || payload.customNumberOfDays || payload.noOfDays);
 
   const booking = {
     id: bookingId(store),
     bookingType,
+    tripType,
     packageId: payload.packageId || "",
     packageTitle: payload.packageTitle || (item && (item.name || item.title)) || "Custom booking",
     customerName: String(payload.customerName).trim(),
     customerUid: String(payload.customerUid || "").trim(),
     customerAccountId: String(payload.customerAccountId || "").trim(),
     phone: String(payload.phone).trim(),
+    whatsappNumber: String(payload.whatsappNumber || payload.phone || "").trim(),
     email: String(payload.email || "").trim(),
     passengers: Number(payload.passengers || 1),
-    travelDate: String(payload.travelDate),
-    returnDate: String(payload.returnDate || ""),
+    travelDate: effectiveTravelDate,
+    returnDate: effectiveReturnDate,
+    departureDate: String(payload.departureDate || effectiveTravelDate || ""),
+    tripReturnDate: String(payload.tripReturnDate || effectiveReturnDate || ""),
+    pickupTime: String(payload.pickupTime || "").trim(),
+    luggageCount: parseInteger(payload.luggageCount),
+    vehiclePreference: String(payload.vehiclePreference || "").trim(),
+    multipleDestinations: normalizeArrayText(payload.multipleDestinations),
+    localRentalPackage: String(payload.localRentalPackage || "").trim(),
+    numberOfDays,
+    airportTripMode: String(payload.airportTripMode || "").trim(),
+    airportName: String(payload.airportName || "").trim(),
+    flightNumber: String(payload.flightNumber || "").trim(),
+    terminal: String(payload.terminal || "").trim(),
+    flightTime: String(payload.flightTime || "").trim(),
+    customDestinations: normalizeArrayText(payload.customDestinations),
+    budget: parseMoney(payload.budget),
+    specialRequirements: String(payload.specialRequirements || "").trim(),
+    termsAccepted: true,
     pickupLocation: String(payload.pickupLocation).trim(),
     dropLocation: String(payload.dropLocation || "").trim(),
     message: String(payload.message || "").trim(),

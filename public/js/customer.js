@@ -498,6 +498,211 @@
     return "day";
   }
 
+  const tripTypeOptions = [
+    ["local_rental", "Local rental"],
+    ["one_way", "One way"],
+    ["round_trip", "Round trip"],
+    ["one_day_package", "One day package"],
+    ["multi_day_package", "Multi day package"],
+    ["airport_transfer", "Airport transfer"],
+    ["custom_trip", "Custom trip"]
+  ];
+
+  function tripTypeLabel(value) {
+    const match = tripTypeOptions.find(([key]) => key === value);
+    return match ? match[1] : "Custom trip";
+  }
+
+  function defaultTripTypeForBookingType(type) {
+    if (type === "tour") return "multi_day_package";
+    if (type === "day") return "one_day_package";
+    return "one_way";
+  }
+
+  function bookingFormUpgradeHtml() {
+    return `
+      <div class="booking-form-upgrade full" data-booking-upgrade>
+        <div class="booking-extra-grid">
+          <label class="full trip-type-field">
+            Trip type
+            <select name="tripType" required data-trip-type>
+              ${tripTypeOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            WhatsApp number
+            <input name="whatsappNumber" autocomplete="tel" placeholder="+91 mobile number" required>
+          </label>
+          <label>
+            Pickup time
+            <input name="pickupTime" type="time" required>
+          </label>
+          <label>
+            Luggage count
+            <input name="luggageCount" type="number" min="0" value="0">
+          </label>
+          <label>
+            Vehicle preference
+            <select name="vehiclePreference">
+              <option value="">Owner can suggest</option>
+              <option value="Sedan">Sedan</option>
+              <option value="SUV">SUV</option>
+              <option value="Tempo Traveller">Tempo Traveller</option>
+              <option value="Luxury car">Luxury car</option>
+              <option value="Any available AC car">Any available AC car</option>
+            </select>
+          </label>
+          <label class="full">
+            Multiple destinations / stops
+            <textarea name="multipleDestinations" rows="2" placeholder="Add extra stops, one place per line"></textarea>
+          </label>
+
+          <fieldset class="trip-dynamic-panel full" data-trip-fields="local_rental">
+            <legend>Local rental package</legend>
+            <label>
+              Rental slab
+              <select name="localRentalPackage" data-required="true">
+                <option value="">Select package</option>
+                <option value="4hrs / 40km">4hrs / 40km</option>
+                <option value="8hrs / 80km">8hrs / 80km</option>
+                <option value="12hrs / 120km">12hrs / 120km</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset class="trip-dynamic-panel full" data-trip-fields="round_trip">
+            <legend>Round trip planning</legend>
+            <div class="booking-extra-grid">
+              <label>
+                Departure date
+                <input name="departureDate" type="date">
+              </label>
+              <label>
+                Return date
+                <input name="tripReturnDate" type="date">
+              </label>
+              <label>
+                Number of days
+                <input name="numberOfDays" type="number" min="1" data-required="true">
+              </label>
+            </div>
+            <small class="form-help">Use the destinations field above for all places to cover.</small>
+          </fieldset>
+
+          <fieldset class="trip-dynamic-panel full" data-trip-fields="airport_transfer">
+            <legend>Airport transfer</legend>
+            <div class="booking-extra-grid">
+              <label>
+                Pickup or drop
+                <select name="airportTripMode" data-required="true">
+                  <option value="">Select</option>
+                  <option value="Airport pickup">Airport pickup</option>
+                  <option value="Airport drop">Airport drop</option>
+                </select>
+              </label>
+              <label>
+                Airport
+                <input name="airportName" placeholder="Kempegowda International Airport" data-required="true">
+              </label>
+              <label>
+                Flight number
+                <input name="flightNumber" placeholder="Example AI 503">
+              </label>
+              <label>
+                Terminal
+                <input name="terminal" placeholder="T1 / T2">
+              </label>
+              <label>
+                Flight time
+                <input name="flightTime" type="time" data-required="true">
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="trip-dynamic-panel full" data-trip-fields="custom_trip">
+            <legend>Custom trip details</legend>
+            <div class="booking-extra-grid">
+              <label class="full">
+                Add another destination
+                <textarea name="customDestinations" rows="2" placeholder="Add places, route ideas, or stopovers" data-required="true"></textarea>
+              </label>
+              <label>
+                Budget
+                <input name="budget" type="number" min="0" placeholder="Approx budget">
+              </label>
+              <label>
+                Number of days
+                <input name="customNumberOfDays" type="number" min="1">
+              </label>
+              <label class="full">
+                Special requirements
+                <textarea name="specialRequirements" rows="2" placeholder="Senior citizen support, child seat, extra luggage, early morning pickup"></textarea>
+              </label>
+            </div>
+          </fieldset>
+
+          <label class="switch-row terms-check full">
+            <input name="termsAccepted" type="checkbox" required>
+            I accept that VRK owner will confirm vehicle, driver, route, final fare, and payment details before travel.
+          </label>
+        </div>
+      </div>
+    `;
+  }
+
+  function refreshTripFields(form) {
+    if (!form || !form.elements || !form.elements.tripType) return;
+    const tripType = form.elements.tripType.value;
+    form.querySelectorAll("[data-trip-fields]").forEach((panel) => {
+      const active = panel.dataset.tripFields.split(/\s+/).includes(tripType);
+      panel.classList.toggle("hidden", !active);
+      panel.querySelectorAll("input, select, textarea").forEach((input) => {
+        input.disabled = !active;
+        input.required = active && input.dataset.required === "true";
+      });
+    });
+  }
+
+  function upgradeBookingForm(form) {
+    if (!form || form.querySelector("[data-booking-upgrade]")) return;
+    form.insertAdjacentHTML("afterbegin", bookingFormUpgradeHtml());
+    const tripType = form.elements.tripType;
+    tripType.value = defaultTripTypeForBookingType(form.elements.bookingType ? form.elements.bookingType.value : "car");
+    form.dataset.autoTripType = tripType.value;
+    tripType.addEventListener("change", () => {
+      form.dataset.tripTypeManual = "true";
+      refreshTripFields(form);
+    });
+    refreshTripFields(form);
+  }
+
+  function tripSummaryDetails(booking) {
+    const destinations = Array.isArray(booking.multipleDestinations)
+      ? booking.multipleDestinations.join(" | ")
+      : booking.multipleDestinations || "";
+    const customDestinations = Array.isArray(booking.customDestinations)
+      ? booking.customDestinations.join(" | ")
+      : booking.customDestinations || "";
+    return [
+      `Trip type: ${tripTypeLabel(booking.tripType)}`,
+      booking.whatsappNumber ? `WhatsApp: ${booking.whatsappNumber}` : "",
+      booking.pickupTime ? `Pickup time: ${booking.pickupTime}` : "",
+      booking.vehiclePreference ? `Vehicle preference: ${booking.vehiclePreference}` : "",
+      Number(booking.luggageCount || 0) ? `Luggage: ${booking.luggageCount}` : "",
+      destinations ? `Stops: ${destinations}` : "",
+      booking.localRentalPackage ? `Local rental: ${booking.localRentalPackage}` : "",
+      booking.numberOfDays ? `Trip days: ${booking.numberOfDays}` : "",
+      booking.airportName ? `Airport: ${booking.airportName}` : "",
+      booking.airportTripMode ? `Airport type: ${booking.airportTripMode}` : "",
+      booking.flightNumber ? `Flight: ${booking.flightNumber}` : "",
+      booking.terminal ? `Terminal: ${booking.terminal}` : "",
+      booking.flightTime ? `Flight time: ${booking.flightTime}` : "",
+      customDestinations ? `Custom destinations: ${customDestinations}` : "",
+      booking.budget ? `Budget: ${VRK.money(booking.budget)}` : "",
+      booking.specialRequirements ? `Special requirements: ${booking.specialRequirements}` : ""
+    ].filter(Boolean);
+  }
+
   function kindForItem(item) {
     return (item && item.bookingType) || bookingTypeForTab();
   }
@@ -1149,6 +1354,12 @@
     if (!form || !form.elements || !form.elements.bookingType) return;
     const type = state.selected ? state.selected.bookingType || bookingTypeForTab() : bookingTypeForTab();
     form.elements.bookingType.value = type;
+    if (form.elements.tripType && form.dataset.tripTypeManual !== "true") {
+      const preferredTripType = defaultTripTypeForBookingType(type);
+      form.elements.tripType.value = preferredTripType;
+      form.dataset.autoTripType = preferredTripType;
+      refreshTripFields(form);
+    }
     form.elements.packageId.value = state.selected ? state.selected.id : "";
     form.elements.packageTitle.value = state.selected ? titleForItem(state.selected) : "General travel enquiry";
     form.elements.amount.value = state.selected ? amountForItem(state.selected) : 0;
@@ -1218,6 +1429,10 @@
         const payload = VRK.formToObject(form);
         payload.passengers = Number(payload.passengers || 1);
         payload.amount = Number(payload.amount || 0);
+        payload.luggageCount = Number(payload.luggageCount || 0);
+        payload.numberOfDays = Number(payload.numberOfDays || payload.customNumberOfDays || 0);
+        payload.budget = Number(payload.budget || 0);
+        payload.termsAccepted = form.elements.termsAccepted && form.elements.termsAccepted.checked;
         const result = await VRK.request("/api/bookings", {
           method: "POST",
           body: JSON.stringify(payload)
@@ -1230,6 +1445,7 @@
         trackForm.elements.bookingId.value = result.booking.id;
         renderTrackedBooking(result.booking);
         form.reset();
+        form.dataset.tripTypeManual = "";
         updateFormSelection(form);
         if (form === modalBookingForm) closeBookingModal();
       } catch (error) {
@@ -1645,6 +1861,7 @@
         <small>Driver: ${VRK.escapeHtml(booking.driver ? booking.driver.name : "Not assigned yet")}</small>
         <small>Car: ${VRK.escapeHtml(booking.car ? booking.car.name : "Not assigned yet")}</small>
         ${booking.confirmationMessage ? `<p>${VRK.escapeHtml(booking.confirmationMessage)}</p>` : ""}
+        ${itemList("Trip details", tripSummaryDetails(booking))}
         ${fareBreakup(booking)}
         ${itemList("Included", booking.includedItems)}
         ${itemList("Extra / excluded", booking.excludedItems)}
@@ -1654,6 +1871,7 @@
     `;
   }
 
+  [bookingForm, modalBookingForm].forEach(upgradeBookingForm);
   bindBookingForm(bookingForm, bookingMessage);
   bindBookingForm(modalBookingForm);
   VRK.watchLiveChanges(load);
