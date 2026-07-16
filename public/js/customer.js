@@ -121,6 +121,64 @@
     return `${code}${local}`;
   }
 
+  function contactPhoneDigits(phone) {
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.length === 10) return `91${digits}`;
+    return digits;
+  }
+
+  function contactLinks() {
+    const business = (state.data && state.data.business) || {};
+    const digits = contactPhoneDigits(business.phone);
+    const message = encodeURIComponent("Hi VRK Tours and Travels, I want to book a car or travel package.");
+    return {
+      phone: business.phone || "",
+      email: business.email || "",
+      address: business.address || "",
+      call: digits ? `tel:+${digits}` : "#contactMap",
+      whatsapp: digits ? `https://wa.me/${digits}?text=${message}` : "#contactMap",
+      map: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        business.address || business.name || "VRK Tours and Travels Karnataka"
+      )}`
+    };
+  }
+
+  function updateContactSections() {
+    const business = (state.data && state.data.business) || {};
+    const links = contactLinks();
+    document.querySelectorAll("[data-contact-action='call']").forEach((link) => {
+      link.href = links.call;
+      link.toggleAttribute("target", false);
+    });
+    document.querySelectorAll("[data-contact-action='whatsapp']").forEach((link) => {
+      link.href = links.whatsapp;
+      if (links.whatsapp.startsWith("https://")) {
+        link.target = "_blank";
+      } else {
+        link.removeAttribute("target");
+      }
+    });
+    document.querySelectorAll("[data-contact-phone]").forEach((node) => {
+      node.textContent = links.phone || "Owner phone will appear here";
+    });
+    document.querySelectorAll("[data-contact-email]").forEach((node) => {
+      node.textContent = links.email || "Owner email will appear here";
+    });
+    document.querySelectorAll("[data-contact-address]").forEach((node) => {
+      node.textContent = links.address || "Owner address will appear here";
+    });
+    document.querySelectorAll("[data-map-link]").forEach((link) => {
+      link.href = links.map;
+    });
+    document.querySelectorAll("[data-map-title]").forEach((node) => {
+      node.textContent = business.name || "VRK Tours and Travels";
+    });
+    document.querySelectorAll("[data-map-subtitle]").forEach((node) => {
+      node.textContent = links.address || "Open Karnataka travel location in Google Maps";
+    });
+  }
+
   function friendlyAuthError(error, method) {
     const code = error && error.code;
     const message = String((error && error.message) || "Login failed. Please try again.");
@@ -384,6 +442,7 @@
     if (state.pageMode === "cars") {
       return [
         {
+          id: "availableCars",
           type: "car",
           eyebrow: "Complete fleet",
           title: "All active cars",
@@ -395,28 +454,31 @@
 
     return [
       {
-        type: "car",
-        eyebrow: "Fleet",
-        title: "Featured cars for local and outstation trips",
-        note: "Owner-selected vehicles shown first on the homepage. Open the full cars page to compare every active car.",
-        empty: "Owner has not marked any featured cars yet.",
-        featuredOnly: true,
-        actionHref: "/cars.html",
-        actionLabel: "View all cars"
+        id: "oneDayPackages",
+        type: "day",
+        eyebrow: "Popular one-day packages",
+        title: "One-day packages for quick Karnataka trips",
+        note: "Sightseeing, temple visits, family outings, and same-day return trips published by the owner.",
+        empty: "Owner has not published active one-day packages yet."
       },
       {
+        id: "tourPackages",
         type: "tour",
-        eyebrow: "Tour packages",
-        title: "Multi-day tour packages",
+        eyebrow: "Multi-day tours",
+        title: "Multi-day tour packages with planned routes",
         note: "Package cards show days, nights, start place, destinations, vehicles, allowances, toll notes, and owner-set starting price.",
         empty: "Owner has not published active tour packages yet."
       },
       {
-        type: "day",
-        eyebrow: "One day",
-        title: "One day travel packages",
-        note: "Quick plans for temple visits, sightseeing, family outings, and same-day return trips.",
-        empty: "Owner has not published active one day packages yet."
+        id: "availableCars",
+        type: "car",
+        eyebrow: "Available cars",
+        title: "Featured cars for local rentals and outstation trips",
+        note: "Owner-selected vehicles shown on the homepage. Open the full cars page to compare every active car.",
+        empty: "Owner has not marked any featured cars yet.",
+        featuredOnly: true,
+        actionHref: "/cars.html",
+        actionLabel: "View all cars"
       }
     ];
   }
@@ -707,21 +769,7 @@
       window.clearInterval(state.heroTimer);
       state.heroTimer = null;
     }
-    if (!banners.length) {
-      heroCarousel.innerHTML = `
-        <article class="hero-slide" style="${styleForText("VRK Tours")}">
-          <div>
-            <span class="eyebrow">VRK Tours and Travels</span>
-            <h1>Cars, one way trips, tours, and day packages</h1>
-            <p>Owner-confirmed pricing, driver assignment, and printable booking bill.</p>
-            <span class="hero-hint">Choose a service below to book</span>
-          </div>
-        </article>
-      `;
-      return;
-    }
-
-    heroCarousel.innerHTML = banners
+    const bannerSlides = banners
       .map(
         (banner) => `
           <article class="hero-slide banner-click" data-banner-info="${VRK.escapeHtml(banner.id)}" tabindex="0" role="button" aria-label="Open details for ${VRK.escapeHtml(
@@ -743,6 +791,52 @@
         `
       )
       .join("");
+    if (state.pageMode === "home") {
+      const counts = {
+        cars: (state.data.cars || []).length,
+        days: (state.data.dayPackages || []).length,
+        tours: (state.data.tourPackages || []).length
+      };
+      heroCarousel.innerHTML = `
+        <article class="hero-slide home-hero-slide" style="${styleForText("VRK Karnataka Travel")}">
+          <div>
+            <span class="eyebrow">VRK Tours and Travels</span>
+            <h1>Comfortable cars, Trusted Drivers and Flexible Travel packages</h1>
+            <p>Book local rentals, one day packages, outstation trips and custom tours from Karnataka.</p>
+            <div class="hero-actions">
+              <a class="primary" href="#quickBooking" data-open-booking>Book a car</a>
+              <a class="secondary" href="#oneDayPackages">View packages</a>
+              <a class="ghost hero-whatsapp" href="#contactMap" data-contact-action="whatsapp" target="_blank" rel="noopener">WhatsApp Us</a>
+            </div>
+            <div class="hero-stat-row" aria-label="Published services">
+              <span><b>${counts.days}</b><small>One-day packages</small></span>
+              <span><b>${counts.tours}</b><small>Multi-day tours</small></span>
+              <span><b>${counts.cars}</b><small>Available cars</small></span>
+            </div>
+          </div>
+        </article>
+        ${bannerSlides}
+      `;
+      updateContactSections();
+      startHeroAutoplay();
+      return;
+    }
+
+    if (!bannerSlides) {
+      heroCarousel.innerHTML = `
+        <article class="hero-slide" style="${styleForText("VRK Tours")}">
+          <div>
+            <span class="eyebrow">VRK Tours and Travels</span>
+            <h1>Cars, one way trips, tours, and day packages</h1>
+            <p>Owner-confirmed pricing, driver assignment, and printable booking bill.</p>
+            <span class="hero-hint">Choose a service below to book</span>
+          </div>
+        </article>
+      `;
+      return;
+    }
+
+    heroCarousel.innerHTML = bannerSlides;
     startHeroAutoplay();
   }
 
@@ -965,7 +1059,7 @@
       const items = itemsForSection(section);
       const countLabel = `${items.length} ${section.featuredOnly ? "featured" : items.length === 1 ? "option" : "options"}`;
       return `
-        <section class="catalog-shelf" data-catalog-section="${section.type}" aria-label="${VRK.escapeHtml(section.title)}">
+        <section class="catalog-shelf" id="${VRK.escapeHtml(section.id || `${section.type}Section`)}" data-catalog-section="${section.type}" aria-label="${VRK.escapeHtml(section.title)}">
           <div class="shelf-head">
             <div>
               <span class="eyebrow">${VRK.escapeHtml(section.eyebrow)}</span>
@@ -1098,6 +1192,7 @@
     renderHero();
     renderGallery();
     renderFooter();
+    updateContactSections();
     if (!state.selected) {
       const first = firstVisibleCatalogItem();
       setSelected(first, false);
