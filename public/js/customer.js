@@ -674,6 +674,7 @@
       refreshTripFields(form);
     });
     refreshTripFields(form);
+    prepareBookingFormValidation(form);
   }
 
   function tripSummaryDetails(booking) {
@@ -750,6 +751,158 @@
   function passengerCapacity(item) {
     const match = String(item && item.seats ? item.seats : "").match(/^\d+/);
     return match ? Number(match[0]) : 0;
+  }
+
+  function localDateValue(offsetDays) {
+    const date = new Date();
+    date.setDate(date.getDate() + Number(offsetDays || 0));
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function normalizeMobileInput(value) {
+    const digits = String(value || "").replace(/\D/g, "");
+    return digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+  }
+
+  function isValidMobile(value) {
+    return /^[6-9]\d{9}$/.test(normalizeMobileInput(value));
+  }
+
+  function normalizedIndiaMobile(value) {
+    return `+91${normalizeMobileInput(value)}`;
+  }
+
+  function isValidEmail(value) {
+    const email = String(value || "").trim();
+    return !email || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+  }
+
+  function fieldName(input) {
+    const label = input.closest("label");
+    if (label) {
+      return label.childNodes[0] ? label.childNodes[0].textContent.trim() : input.name;
+    }
+    return String(input.name || "field").replace(/([A-Z])/g, " $1").toLowerCase();
+  }
+
+  function firstInvalidField(form, message) {
+    const invalid = form.querySelector(".is-invalid") || form.querySelector(":invalid");
+    if (invalid && typeof invalid.focus === "function") invalid.focus();
+    return { valid: false, message };
+  }
+
+  function setDateLimits(form) {
+    if (!form || !form.elements) return;
+    const today = localDateValue();
+    ["travelDate", "departureDate"].forEach((name) => {
+      if (form.elements[name]) form.elements[name].min = today;
+    });
+    const travelDate = form.elements.travelDate && form.elements.travelDate.value;
+    const minimumReturn = travelDate && travelDate > today ? travelDate : today;
+    ["returnDate", "tripReturnDate"].forEach((name) => {
+      if (form.elements[name]) form.elements[name].min = minimumReturn;
+    });
+  }
+
+  function clearFormValidation(form) {
+    form.querySelectorAll(".is-invalid").forEach((input) => input.classList.remove("is-invalid"));
+  }
+
+  function markInvalid(input) {
+    if (input) input.classList.add("is-invalid");
+  }
+
+  function validateBookingForm(form) {
+    clearFormValidation(form);
+    setDateLimits(form);
+    const requiredControls = Array.from(form.querySelectorAll("[required]")).filter(
+      (input) => !input.disabled && input.type !== "hidden"
+    );
+    const emptyRequired = requiredControls.filter((input) => {
+      if (input.type === "checkbox") return !input.checked;
+      return !String(input.value || "").trim();
+    });
+    if (emptyRequired.length) {
+      emptyRequired.slice(0, 3).forEach(markInvalid);
+      const names = emptyRequired.slice(0, 3).map(fieldName).join(", ");
+      return firstInvalidField(form, `Please fill ${names}.`);
+    }
+
+    const travelDate = form.elements.travelDate && form.elements.travelDate.value;
+    const returnDate = form.elements.returnDate && form.elements.returnDate.value;
+    const departureDate = form.elements.departureDate && !form.elements.departureDate.disabled
+      ? form.elements.departureDate.value
+      : "";
+    const tripReturnDate = form.elements.tripReturnDate && !form.elements.tripReturnDate.disabled
+      ? form.elements.tripReturnDate.value
+      : "";
+    const today = localDateValue();
+    if (travelDate && travelDate < today) {
+      markInvalid(form.elements.travelDate);
+      return firstInvalidField(form, "Travel date cannot be in the past.");
+    }
+    if (departureDate && departureDate < today) {
+      markInvalid(form.elements.departureDate);
+      return firstInvalidField(form, "Departure date cannot be in the past.");
+    }
+    if (returnDate && travelDate && returnDate < travelDate) {
+      markInvalid(form.elements.returnDate);
+      return firstInvalidField(form, "Return date cannot be before travel date.");
+    }
+    if (tripReturnDate && travelDate && tripReturnDate < travelDate) {
+      markInvalid(form.elements.tripReturnDate);
+      return firstInvalidField(form, "Round trip return date cannot be before travel date.");
+    }
+
+    if (!isValidMobile(form.elements.phone.value)) {
+      markInvalid(form.elements.phone);
+      return firstInvalidField(form, "Enter a valid 10-digit India mobile number.");
+    }
+    if (!isValidMobile(form.elements.whatsappNumber.value)) {
+      markInvalid(form.elements.whatsappNumber);
+      return firstInvalidField(form, "Enter a valid 10-digit India WhatsApp number.");
+    }
+    if (form.elements.email && !isValidEmail(form.elements.email.value)) {
+      markInvalid(form.elements.email);
+      return firstInvalidField(form, "Enter a valid email address, or leave email empty.");
+    }
+
+    const passengers = Number(form.elements.passengers.value || 0);
+    if (!Number.isInteger(passengers) || passengers < 1) {
+      markInvalid(form.elements.passengers);
+      return firstInvalidField(form, "Passenger count must be at least 1.");
+    }
+    const selectedType = form.elements.bookingType.value;
+    const capacity = selectedType === "car" ? passengerCapacity(state.selected) || Number(form.elements.passengers.max || 0) : 0;
+    if (capacity && passengers > capacity) {
+      markInvalid(form.elements.passengers);
+      return firstInvalidField(form, `Selected car allows ${capacity} passenger(s). Choose a bigger car or reduce passengers.`);
+    }
+
+    return { valid: true };
+  }
+
+  function prepareBookingFormValidation(form) {
+    if (!form || form.dataset.validationReady === "true") return;
+    form.dataset.validationReady = "true";
+    ["phone", "whatsappNumber"].forEach((name) => {
+      if (form.elements[name]) {
+        form.elements[name].inputMode = "tel";
+        form.elements[name].placeholder = name === "phone" ? "10-digit mobile number" : "+91 WhatsApp number";
+      }
+    });
+    ["passengers", "luggageCount", "numberOfDays", "customNumberOfDays", "budget"].forEach((name) => {
+      if (form.elements[name]) form.elements[name].inputMode = "numeric";
+    });
+    form.addEventListener("input", () => {
+      clearFormValidation(form);
+      setDateLimits(form);
+    });
+    form.addEventListener("change", () => setDateLimits(form));
+    setDateLimits(form);
   }
 
   function carDetailsForItem(item) {
@@ -1368,9 +1521,6 @@
       if (capacity) {
         form.elements.passengers.max = String(capacity);
         form.elements.passengers.placeholder = `Max ${capacity} passengers`;
-        if (Number(form.elements.passengers.value || 1) > capacity) {
-          form.elements.passengers.value = String(capacity);
-        }
       } else {
         form.elements.passengers.removeAttribute("max");
         form.elements.passengers.placeholder = "";
@@ -1419,11 +1569,20 @@
   function bindBookingForm(form, messageElement) {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (form.dataset.submitting === "true") return;
       updateFormSelection(form);
       const submitButton = form.querySelector("button[type='submit']");
       const statusElement = messageElement || form.querySelector(".form-message");
+      const validation = validateBookingForm(form);
+      if (!validation.valid) {
+        VRK.setMessage(statusElement, validation.message, "danger");
+        return;
+      }
+      const originalButtonText = submitButton.textContent;
+      form.dataset.submitting = "true";
       submitButton.disabled = true;
-      VRK.setMessage(statusElement, "Sending booking request...", "active");
+      submitButton.textContent = "Submitting...";
+      VRK.setMessage(statusElement, "Submitting booking request...", "active");
 
       try {
         const payload = VRK.formToObject(form);
@@ -1433,13 +1592,16 @@
         payload.numberOfDays = Number(payload.numberOfDays || payload.customNumberOfDays || 0);
         payload.budget = Number(payload.budget || 0);
         payload.termsAccepted = form.elements.termsAccepted && form.elements.termsAccepted.checked;
+        payload.phone = normalizedIndiaMobile(payload.phone);
+        payload.whatsappNumber = normalizedIndiaMobile(payload.whatsappNumber);
+        if (payload.email) payload.email = String(payload.email).trim().toLowerCase();
         const result = await VRK.request("/api/bookings", {
           method: "POST",
           body: JSON.stringify(payload)
         });
         VRK.setMessage(
           statusElement,
-          `Booking created: ${result.booking.id}. Owner will confirm final amount before payment.`,
+          `Booking successful. Your Booking ID is ${result.booking.id}. Owner will confirm final amount before payment.`,
           "good"
         );
         trackForm.elements.bookingId.value = result.booking.id;
@@ -1447,11 +1609,13 @@
         form.reset();
         form.dataset.tripTypeManual = "";
         updateFormSelection(form);
-        if (form === modalBookingForm) closeBookingModal();
+        setDateLimits(form);
       } catch (error) {
         VRK.setMessage(statusElement, error.message, "danger");
       } finally {
+        form.dataset.submitting = "";
         submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
       }
     });
   }

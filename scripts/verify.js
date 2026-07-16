@@ -64,6 +64,15 @@ async function checkPage(base, route) {
   return response.status;
 }
 
+function futureDate(daysFromToday) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromToday);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 async function main() {
   const originalStore = await fs.readFile(STORE_FILE, "utf8").catch(() => null);
   const cleanSeed = await fs.readFile(SEED_FILE, "utf8");
@@ -236,32 +245,88 @@ async function main() {
     });
     const publicAfterDayArchive = await request(base, "/api/public-data");
 
+    let pastDateRejected = false;
+    try {
+      await request(base, "/api/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          customerName: "Past Date Customer",
+          phone: "9999900002",
+          passengers: 1,
+          bookingType: "car",
+          tripType: "one_way",
+          packageId: carResult.item.id,
+          travelDate: "2020-01-01",
+          whatsappNumber: "9999900002",
+          pickupTime: "07:30",
+          termsAccepted: true,
+          pickupLocation: "Old pickup point"
+        })
+      });
+    } catch (error) {
+      pastDateRejected = error.status === 422;
+    }
+
+    let passengerCapacityRejected = false;
+    try {
+      await request(base, "/api/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          customerName: "Large Group Customer",
+          phone: "9999900003",
+          passengers: 9,
+          bookingType: "car",
+          tripType: "one_way",
+          packageId: carResult.item.id,
+          travelDate: futureDate(3),
+          whatsappNumber: "9999900003",
+          pickupTime: "07:30",
+          termsAccepted: true,
+          pickupLocation: "Capacity pickup point"
+        })
+      });
+    } catch (error) {
+      passengerCapacityRejected = error.status === 422;
+    }
+
+    const bookingPayload = {
+      customerName: "Verification Customer",
+      phone: "9999900000",
+      email: "verify@example.com",
+      passengers: 2,
+      bookingType: "car",
+      tripType: "round_trip",
+      packageId: carResult.item.id,
+      packageTitle: carResult.item.name,
+      amount: carResult.item.dayRate,
+      travelDate: futureDate(4),
+      returnDate: futureDate(5),
+      whatsappNumber: "9999900000",
+      pickupTime: "07:30",
+      luggageCount: 2,
+      vehiclePreference: "Sedan",
+      multipleDestinations: "Temple stop\nLunch stop",
+      numberOfDays: 2,
+      termsAccepted: true,
+      pickupLocation: "Test pickup point",
+      dropLocation: "Test drop point",
+      message: "Automated verification booking"
+    };
+
     const created = await request(base, "/api/bookings", {
       method: "POST",
-      body: JSON.stringify({
-        customerName: "Verification Customer",
-        phone: "9999900000",
-        email: "verify@example.com",
-        passengers: 2,
-        bookingType: "car",
-        tripType: "round_trip",
-        packageId: carResult.item.id,
-        packageTitle: carResult.item.name,
-        amount: carResult.item.dayRate,
-        travelDate: "2026-07-20",
-        returnDate: "2026-07-20",
-        whatsappNumber: "9999900000",
-        pickupTime: "07:30",
-        luggageCount: 2,
-        vehiclePreference: "Sedan",
-        multipleDestinations: "Temple stop\nLunch stop",
-        numberOfDays: 1,
-        termsAccepted: true,
-        pickupLocation: "Test pickup point",
-        dropLocation: "Test drop point",
-        message: "Automated verification booking"
-      })
+      body: JSON.stringify(bookingPayload)
     });
+
+    let duplicateBookingRejected = false;
+    try {
+      await request(base, "/api/bookings", {
+        method: "POST",
+        body: JSON.stringify(bookingPayload)
+      });
+    } catch (error) {
+      duplicateBookingRejected = error.status === 409;
+    }
 
     const confirmed = await request(base, `/api/admin/bookings/${created.booking.id}/assign`, {
       method: "POST",
@@ -356,8 +421,12 @@ async function main() {
           deletedUnusedCar: deletedTempCar.ok,
           shownHiddenCar: shownCar.item.active,
           deleteBookedCarStatus,
+          pastDateRejected,
+          passengerCapacityRejected,
+          duplicateBookingRejected,
           bookingChecksSaved: confirmed.booking.checks && confirmed.booking.checks.fareShared === true,
           bookingId: created.booking.id,
+          serialBookingId: /^VRK-\d{4}-\d{4,}$/.test(created.booking.id),
           bookingTripType: created.booking.tripType,
           bookingPickupTime: created.booking.pickupTime,
           ownerConfirmedAmount: confirmed.booking.amount,

@@ -38,14 +38,29 @@ function id(prefix) {
   return `${prefix}_${crypto.randomUUID().slice(0, 8)}`;
 }
 
-function bookingId(store) {
-  const prefix = String((store.business && store.business.invoicePrefix) || "VRK")
+function bookingId(store, travelDate) {
+  const prefix = String((store.business && (store.business.invoicePrefix || store.business.name)) || "VRK")
     .replace(/[^a-z0-9]/gi, "")
     .toUpperCase()
-    .slice(0, 6) || "VRK";
-  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const code = crypto.randomBytes(3).toString("hex").toUpperCase();
-  return `${prefix}-${stamp}-${code}`;
+    .slice(0, 4) || "VRK";
+  const yearMatch = String(travelDate || "").match(/^\d{4}/);
+  const year = yearMatch ? yearMatch[0] : new Date().toISOString().slice(0, 4);
+  const serialPattern = new RegExp(`^${prefix}-${year}-(\\d+)$`);
+  let maxSerial = 0;
+  let sameYearBookings = 0;
+  for (const booking of store.bookings || []) {
+    const bookingYear = String(booking.travelDate || booking.departureDate || booking.createdAt || "").slice(0, 4);
+    if (bookingYear === year) sameYearBookings += 1;
+    const match = String(booking.id || "").match(serialPattern);
+    if (match) maxSerial = Math.max(maxSerial, Number(match[1]));
+  }
+  let serial = Math.max(maxSerial, sameYearBookings) + 1;
+  let nextId = `${prefix}-${year}-${String(serial).padStart(4, "0")}`;
+  while ((store.bookings || []).some((booking) => booking.id === nextId)) {
+    serial += 1;
+    nextId = `${prefix}-${year}-${String(serial).padStart(4, "0")}`;
+  }
+  return nextId;
 }
 
 function sendJson(res, status, payload) {
@@ -440,6 +455,86 @@ function validationError(message) {
   return err;
 }
 
+function businessTodayDate() {
+  const parts = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  })
+    .formatToParts(new Date())
+    .reduce((dateParts, part) => {
+      dateParts[part.type] = part.value;
+      return dateParts;
+    }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function isValidDateOnly(value) {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
+}
+
+function assertValidTravelDates(travelDate, returnDate) {
+  if (!isValidDateOnly(travelDate)) {
+    throw validationError("Select a valid travel date.");
+  }
+  if (travelDate < businessTodayDate()) {
+    throw validationError("Travel date cannot be in the past.");
+  }
+  if (returnDate) {
+    if (!isValidDateOnly(returnDate)) {
+      throw validationError("Select a valid return date.");
+    }
+    if (returnDate < travelDate) {
+      throw validationError("Return date cannot be before travel date.");
+    }
+  }
+}
+
+function normalizeBookingMobile(value, label) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  const mobile = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+  if (!/^[6-9]\d{9}$/.test(mobile)) {
+    throw validationError(`${label || "Mobile number"} must be a valid 10-digit India mobile number.`);
+  }
+  return `+91${mobile}`;
+}
+
+function normalizeBookingEmail(value) {
+  const email = String(value || "").trim().toLowerCase();
+  if (!email) return "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    throw validationError("Enter a valid email address, or leave email empty.");
+  }
+  return email;
+}
+
+function carPassengerCapacity(item) {
+  const match = String(item && item.seats ? item.seats : "").match(/^\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
+function findRecentDuplicateBooking(store, booking) {
+  const createdAt = Date.now();
+  return (store.bookings || []).find((item) => {
+    if (item.status === "cancelled") return false;
+    const ageMs = createdAt - new Date(item.createdAt || 0).getTime();
+    return (
+      ageMs >= 0 &&
+      ageMs < 2 * 60 * 1000 &&
+      item.phone === booking.phone &&
+      item.bookingType === booking.bookingType &&
+      item.packageId === booking.packageId &&
+      item.travelDate === booking.travelDate &&
+      item.pickupLocation === booking.pickupLocation
+    );
+  });
+}
+
 function normalizeCarName(value) {
   const name = String(value || "").trim().replace(/\s+/g, " ");
   if (!name) throw validationError("Car name is required");
@@ -518,10 +613,35 @@ function defaultInclusions(item, bookingType) {
   return [];
 }
 
+const FIELD_LABELS = {
+  customerName: "customer name",
+  phone: "mobile number",
+  whatsappNumber: "WhatsApp number",
+  email: "email address",
+  bookingType: "booking type",
+  tripType: "trip type",
+  travelDate: "travel date",
+  returnDate: "return date",
+  pickupTime: "pickup time",
+  pickupLocation: "pickup location",
+  dropLocation: "drop location",
+  passengers: "passenger count",
+  localRentalPackage: "local rental package",
+  numberOfDays: "number of days",
+  airportTripMode: "airport pickup or drop",
+  airportName: "airport",
+  flightTime: "flight time",
+  customDestinations: "custom destinations"
+};
+
+function fieldLabel(field) {
+  return FIELD_LABELS[field] || field.replace(/([A-Z])/g, " $1").toLowerCase();
+}
+
 function requireFields(payload, fields) {
   const missing = fields.filter((field) => !String(payload[field] || "").trim());
   if (missing.length) {
-    const err = new Error(`Missing required field: ${missing.join(", ")}`);
+    const err = new Error(`Please fill ${missing.map(fieldLabel).join(", ")}.`);
     err.status = 422;
     throw err;
   }
@@ -607,8 +727,9 @@ function createBooking(store, payload) {
   const effectiveReturnDate = String(payload.returnDate || payload.tripReturnDate || "").trim();
   requireFields(
     { ...payload, travelDate: effectiveTravelDate },
-    ["customerName", "phone", "bookingType", "travelDate", "pickupLocation", "whatsappNumber", "pickupTime"]
+    ["customerName", "phone", "bookingType", "travelDate", "pickupLocation", "whatsappNumber", "pickupTime", "passengers"]
   );
+  assertValidTravelDates(effectiveTravelDate, effectiveReturnDate);
   const bookingType = String(payload.bookingType);
   if (!["car", "tour", "day"].includes(bookingType)) {
     const err = new Error("Booking type must be car, tour, or day");
@@ -616,6 +737,9 @@ function createBooking(store, payload) {
     throw err;
   }
   const tripType = normalizeTripType(payload.tripType, bookingType);
+  const phone = normalizeBookingMobile(payload.phone, "Mobile number");
+  const whatsappNumber = normalizeBookingMobile(payload.whatsappNumber, "WhatsApp number");
+  const email = normalizeBookingEmail(payload.email);
   if (!flagValue(payload.termsAccepted, false)) {
     throw validationError("Accept booking terms before sending request");
   }
@@ -636,9 +760,20 @@ function createBooking(store, payload) {
   }
   const item = selectedItem(store, bookingType, payload.packageId || "");
   const numberOfDays = parseInteger(payload.numberOfDays || payload.customNumberOfDays || payload.noOfDays);
+  if (tripType === "round_trip" && numberOfDays < 1) {
+    throw validationError("Number of days must be at least 1 for a round trip.");
+  }
+  const passengers = parseInteger(payload.passengers);
+  if (passengers < 1) {
+    throw validationError("Passenger count must be at least 1.");
+  }
+  const capacity = bookingType === "car" ? carPassengerCapacity(item) : 0;
+  if (capacity && passengers > capacity) {
+    throw validationError(`Selected car allows ${capacity} passenger(s). Reduce passengers or choose a bigger car.`);
+  }
 
   const booking = {
-    id: bookingId(store),
+    id: bookingId(store, effectiveTravelDate),
     bookingType,
     tripType,
     packageId: payload.packageId || "",
@@ -646,10 +781,10 @@ function createBooking(store, payload) {
     customerName: String(payload.customerName).trim(),
     customerUid: String(payload.customerUid || "").trim(),
     customerAccountId: String(payload.customerAccountId || "").trim(),
-    phone: String(payload.phone).trim(),
-    whatsappNumber: String(payload.whatsappNumber || payload.phone || "").trim(),
-    email: String(payload.email || "").trim(),
-    passengers: Number(payload.passengers || 1),
+    phone,
+    whatsappNumber,
+    email,
+    passengers,
     travelDate: effectiveTravelDate,
     returnDate: effectiveReturnDate,
     departureDate: String(payload.departureDate || effectiveTravelDate || ""),
@@ -695,6 +830,13 @@ function createBooking(store, payload) {
       }
     ]
   };
+
+  const duplicate = findRecentDuplicateBooking(store, booking);
+  if (duplicate) {
+    const err = new Error(`This booking was already submitted. Your booking ID is ${duplicate.id}.`);
+    err.status = 409;
+    throw err;
+  }
 
   store.bookings.unshift(booking);
   return booking;

@@ -586,6 +586,13 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
 }
 
+input.is-invalid,
+select.is-invalid,
+textarea.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
 .selected-strip {
   min-height: 46px;
   padding: 12px;
