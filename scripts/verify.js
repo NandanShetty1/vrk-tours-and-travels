@@ -318,6 +318,22 @@ async function main() {
       body: JSON.stringify(bookingPayload)
     });
 
+    let insecureTrackingRejected = false;
+    try {
+      await request(base, `/api/bookings/${created.booking.id}`);
+    } catch (error) {
+      insecureTrackingRejected = error.status === 403;
+    }
+
+    const trackedAfterCreate = await request(base, "/api/bookings/track", {
+      method: "POST",
+      body: JSON.stringify({
+        bookingId: created.booking.id,
+        phone: bookingPayload.phone,
+        trackingCode: created.booking.trackingCode
+      })
+    });
+
     let duplicateBookingRejected = false;
     try {
       await request(base, "/api/bookings", {
@@ -358,7 +374,9 @@ async function main() {
         paymentMethod: "UPI",
         transactionId: "VERIFY123",
         paidAmount: confirmed.booking.amount,
-        paymentDate: "2026-07-07"
+        paymentDate: futureDate(1),
+        trackingPhone: bookingPayload.phone,
+        trackingCode: created.booking.trackingCode
       })
     });
 
@@ -389,13 +407,34 @@ async function main() {
       body: JSON.stringify({
         driverId: driverResult.item.id,
         accessCode: driverResult.item.accessCode,
-        status: "driver_accepted",
-        notes: "Driver accepted verification trip"
+        status: "on_trip",
+        notes: "Driver started verification trip",
+        liveLocationUrl: "https://maps.google.com/?q=12.9716,77.5946",
+        liveLocationNote: "Verification location shared"
       })
     });
 
-    const tracked = await request(base, `/api/bookings/${created.booking.id}`);
-    const bill = await request(base, `/api/bill/${created.booking.id}`);
+    const tracked = await request(base, "/api/bookings/track", {
+      method: "POST",
+      body: JSON.stringify({
+        bookingId: created.booking.id,
+        phone: bookingPayload.phone,
+        trackingCode: created.booking.trackingCode
+      })
+    });
+    let insecureBillRejected = false;
+    try {
+      await request(base, `/api/bill/${created.booking.id}`);
+    } catch (error) {
+      insecureBillRejected = error.status === 403;
+    }
+
+    const bill = await request(
+      base,
+      `/api/bill/${created.booking.id}?phone=${encodeURIComponent(bookingPayload.phone)}&trackingCode=${encodeURIComponent(
+        created.booking.trackingCode
+      )}`
+    );
     let deleteBookedCarStatus = 0;
     try {
       await request(base, `/api/admin/cars/${carResult.item.id}/delete`, {
@@ -424,9 +463,13 @@ async function main() {
           pastDateRejected,
           passengerCapacityRejected,
           duplicateBookingRejected,
+          insecureTrackingRejected,
+          insecureBillRejected,
+          secureTrackingWorks: trackedAfterCreate.booking.id === created.booking.id,
           bookingChecksSaved: confirmed.booking.checks && confirmed.booking.checks.fareShared === true,
           bookingId: created.booking.id,
           serialBookingId: /^VRK-\d{4}-\d{4,}$/.test(created.booking.id),
+          trackingCodeIssued: /^\d{6}$/.test(created.booking.trackingCode || ""),
           bookingTripType: created.booking.tripType,
           bookingPickupTime: created.booking.pickupTime,
           ownerConfirmedAmount: confirmed.booking.amount,
@@ -434,6 +477,7 @@ async function main() {
           adminVerifiedStatus: verified.booking.status,
           driverTrips: driverData.bookings.length,
           finalTrackedStatus: tracked.booking.status,
+          liveLocationVisibleDuringTrip: Boolean(tracked.booking.liveLocation && tracked.booking.liveLocation.url),
           billInvoiceBusiness: bill.business.name
         },
         null,

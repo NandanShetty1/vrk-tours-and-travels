@@ -2,6 +2,8 @@
   const root = document.querySelector("#billRoot");
   const params = new URLSearchParams(window.location.search);
   const bookingId = params.get("id") || "";
+  const trackingPhone = params.get("phone") || "";
+  const trackingCode = params.get("code") || params.get("trackingCode") || "";
 
   function rows(items, amount) {
     if (!items || !items.length) {
@@ -175,10 +177,14 @@
     document.querySelector("#printButton").addEventListener("click", () => window.print());
   }
 
-  if (!bookingId) {
-    root.innerHTML = `<div class="empty-state">Booking ID is missing.</div>`;
+  if (!bookingId || !trackingPhone || !trackingCode) {
+    root.innerHTML = `<div class="empty-state">Booking ID, registered mobile number, and tracking code are required to open this bill.</div>`;
   } else {
-    VRK.request(`/api/bill/${encodeURIComponent(bookingId)}`)
+    VRK.request(
+      `/api/bill/${encodeURIComponent(bookingId)}?phone=${encodeURIComponent(trackingPhone)}&trackingCode=${encodeURIComponent(
+        trackingCode
+      )}`
+    )
       .then(render)
       .catch((error) => {
         root.innerHTML = `<div class="empty-state">${VRK.escapeHtml(error.message)}</div>`;

@@ -6,6 +6,7 @@
     infoItem: null,
     heroTimer: null,
     catalogTimers: [],
+    trackingAccess: null,
     pageMode: document.body.dataset.page || "home",
     customerProfile: null,
     auth: {
@@ -1601,10 +1602,17 @@
         });
         VRK.setMessage(
           statusElement,
-          `Booking successful. Your Booking ID is ${result.booking.id}. Owner will confirm final amount before payment.`,
+          `Booking successful. Booking ID: ${result.booking.id}. Tracking code: ${result.booking.trackingCode}. Keep both safely.`,
           "good"
         );
+        state.trackingAccess = {
+          bookingId: result.booking.id,
+          phone: payload.phone,
+          trackingCode: result.booking.trackingCode
+        };
         trackForm.elements.bookingId.value = result.booking.id;
+        trackForm.elements.phone.value = payload.phone;
+        trackForm.elements.trackingCode.value = result.booking.trackingCode;
         renderTrackedBooking(result.booking);
         form.reset();
         form.dataset.tripTypeManual = "";
@@ -1886,11 +1894,33 @@
 
   trackForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const bookingId = trackForm.elements.bookingId.value.trim();
-    if (!bookingId) return;
-    trackResult.innerHTML = `<p>Checking booking...</p>`;
+    const payload = VRK.formToObject(trackForm);
+    payload.bookingId = String(payload.bookingId || "").trim();
+    payload.phone = normalizedIndiaMobile(payload.phone || "");
+    payload.trackingCode = String(payload.trackingCode || "").trim();
+    if (!payload.bookingId || !payload.phone || !payload.trackingCode) {
+      trackResult.innerHTML = `<p class="danger-text">Enter booking ID, registered mobile number, and tracking code.</p>`;
+      return;
+    }
+    if (!isValidMobile(payload.phone)) {
+      trackResult.innerHTML = `<p class="danger-text">Enter the same 10-digit mobile number used during booking.</p>`;
+      return;
+    }
+    if (!/^\d{6}$/.test(payload.trackingCode)) {
+      trackResult.innerHTML = `<p class="danger-text">Enter the 6-digit tracking code shown after booking.</p>`;
+      return;
+    }
+    state.trackingAccess = {
+      bookingId: payload.bookingId,
+      phone: payload.phone,
+      trackingCode: payload.trackingCode
+    };
+    trackResult.innerHTML = `<p>Securely checking booking...</p>`;
     try {
-      const result = await VRK.request(`/api/bookings/${encodeURIComponent(bookingId)}`);
+      const result = await VRK.request("/api/bookings/track", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
       renderTrackedBooking(result.booking);
     } catch (error) {
       trackResult.innerHTML = `<p class="danger-text">${VRK.escapeHtml(error.message)}</p>`;
@@ -1955,6 +1985,69 @@
     );
   }
 
+  function quotationLabel(value) {
+    const labels = {
+      waiting_for_owner: "Waiting for owner quotation",
+      quotation_pending: "Quotation pending",
+      quotation_ready: "Quotation ready",
+      cancelled: "Cancelled"
+    };
+    return labels[value] || VRK.statusLabel(value || "quotation_pending");
+  }
+
+  function trackingCredentialInputs() {
+    const access = state.trackingAccess || {};
+    return `
+      <input type="hidden" name="trackingPhone" value="${VRK.escapeHtml(access.phone || "")}">
+      <input type="hidden" name="trackingCode" value="${VRK.escapeHtml(access.trackingCode || "")}">
+    `;
+  }
+
+  function secureBillUrl(booking) {
+    const access = state.trackingAccess || {};
+    const params = new URLSearchParams({
+      id: booking.id,
+      phone: access.phone || "",
+      code: access.trackingCode || ""
+    });
+    return `/bill.html?${params.toString()}`;
+  }
+
+  function trackingDetailGrid(booking) {
+    const details = [
+      ["Selected service", booking.selectedService || booking.packageTitle],
+      ["Booking status", VRK.statusLabel(booking.status)],
+      ["Quotation status", quotationLabel(booking.quotationStatus || (booking.amount ? "quotation_ready" : "waiting_for_owner"))],
+      ["Payment status", VRK.statusLabel(booking.paymentStatus)],
+      ["Trip status", VRK.statusLabel(booking.tripStatus || booking.status)],
+      ["Travel date", VRK.dateLabel(booking.travelDate)],
+      ["Pickup time", booking.pickupTime || "Not added"],
+      ["Passengers", booking.passengers],
+      ["Amount", booking.amount ? VRK.money(booking.amount) : "Owner quotation pending"],
+      ["Assigned car", booking.car ? [booking.car.name, booking.car.seats].filter(Boolean).join(" | ") : "Visible after confirmation"],
+      ["Assigned driver", booking.driver ? [booking.driver.name, booking.driver.phone].filter(Boolean).join(" | ") : "Visible after confirmation"]
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+    return `<div class="tracking-summary-grid">${details
+      .map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`)
+      .join("")}</div>`;
+  }
+
+  function liveLocationPanel(booking) {
+    if (booking.status !== "on_trip") return "";
+    if (!booking.liveLocation) {
+      return `<p class="note-line">Live location will appear here only while the active trip is running and the driver shares it.</p>`;
+    }
+    const link = booking.liveLocation.url || "";
+    return `
+      <div class="live-location-box">
+        <b>Live location</b>
+        ${link ? `<a class="secondary" href="${VRK.escapeHtml(link)}" target="_blank" rel="noopener">Open driver location</a>` : ""}
+        ${booking.liveLocation.note ? `<small>${VRK.escapeHtml(booking.liveLocation.note)}</small>` : ""}
+        ${booking.liveLocation.updatedAt ? `<small>Updated ${VRK.dateTimeLabel(booking.liveLocation.updatedAt)}</small>` : ""}
+      </div>
+    `;
+  }
+
   function paymentDetails() {
     const business = state.data.business || {};
     return `
@@ -1979,6 +2072,7 @@
     return `
       ${paymentDetails()}
       <form class="payment-form form-grid compact" data-booking-id="${VRK.escapeHtml(booking.id)}">
+        ${trackingCredentialInputs()}
         <label>
           Payer name
           <input name="payerName" value="${VRK.escapeHtml(booking.customerName)}" required>
@@ -2015,22 +2109,26 @@
       <div class="mini-status">
         <div class="status-row">
           <span class="badge ${VRK.statusClass(booking.status)}">${VRK.statusLabel(booking.status)}</span>
+          <span class="badge ${VRK.statusClass(booking.quotationStatus)}">${quotationLabel(
+      booking.quotationStatus || (booking.amount ? "quotation_ready" : "waiting_for_owner")
+    )}</span>
           <span class="badge ${VRK.statusClass(booking.paymentStatus)}">${VRK.statusLabel(booking.paymentStatus)}</span>
         </div>
-        <strong>${VRK.escapeHtml(booking.packageTitle)}</strong>
+        <strong>${VRK.escapeHtml(booking.selectedService || booking.packageTitle)}</strong>
         <small>Booking ID: ${VRK.escapeHtml(booking.id)}</small>
+        ${booking.trackingCode ? `<p class="secure-code-box"><b>Tracking code</b><span>${VRK.escapeHtml(booking.trackingCode)}</span><small>Keep this code with your booking ID and mobile number.</small></p>` : ""}
         <small>${VRK.dateLabel(booking.travelDate)} | ${
       booking.amount ? VRK.money(booking.amount) : "Owner amount pending"
     }</small>
-        <small>Driver: ${VRK.escapeHtml(booking.driver ? booking.driver.name : "Not assigned yet")}</small>
-        <small>Car: ${VRK.escapeHtml(booking.car ? booking.car.name : "Not assigned yet")}</small>
+        ${trackingDetailGrid(booking)}
         ${booking.confirmationMessage ? `<p>${VRK.escapeHtml(booking.confirmationMessage)}</p>` : ""}
+        ${liveLocationPanel(booking)}
         ${itemList("Trip details", tripSummaryDetails(booking))}
         ${fareBreakup(booking)}
         ${itemList("Included", booking.includedItems)}
         ${itemList("Extra / excluded", booking.excludedItems)}
         ${paymentForm(booking)}
-        <a class="secondary ticket-link" href="/bill.html?id=${encodeURIComponent(booking.id)}">Open bill / ticket</a>
+        <a class="secondary ticket-link" href="${VRK.escapeHtml(secureBillUrl(booking))}">Open bill / ticket</a>
       </div>
     `;
   }

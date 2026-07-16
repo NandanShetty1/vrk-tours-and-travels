@@ -535,6 +535,104 @@ function findRecentDuplicateBooking(store, booking) {
   });
 }
 
+function generateTrackingCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function hashTrackingCode(code) {
+  return crypto.createHash("sha256").update(String(code || "").trim()).digest("hex");
+}
+
+function bookingHasTrackingCode(booking) {
+  return Boolean(booking && booking.trackingCodeHash);
+}
+
+function verifyBookingTrackingAccess(booking, payload) {
+  if (!booking) {
+    throw validationError("Booking not found.");
+  }
+  requireFields(payload, ["bookingId", "phone", "trackingCode"]);
+  if (!bookingHasTrackingCode(booking)) {
+    const err = new Error("Secure tracking code is not available for this older booking. Please contact VRK owner.");
+    err.status = 403;
+    throw err;
+  }
+  const phone = normalizeBookingMobile(payload.phone, "Registered mobile number");
+  if (phone !== booking.phone) {
+    const err = new Error("Booking ID and registered mobile number do not match.");
+    err.status = 403;
+    throw err;
+  }
+  if (hashTrackingCode(payload.trackingCode) !== booking.trackingCodeHash) {
+    const err = new Error("Tracking code is incorrect.");
+    err.status = 403;
+    throw err;
+  }
+  return phone;
+}
+
+function quotationStatus(booking) {
+  if (booking.status === "cancelled") return "cancelled";
+  if (parseMoney(booking.amount) > 0) return "quotation_ready";
+  if (booking.status === "pending_owner_confirmation") return "waiting_for_owner";
+  return "quotation_pending";
+}
+
+function customerTrackingSummary(store, booking) {
+  const summary = bookingSummary(store, booking);
+  const canShowAssignment = !["pending_owner_confirmation", "cancelled"].includes(summary.status);
+  const onTrip = summary.status === "on_trip";
+  return {
+    id: summary.id,
+    customerName: summary.customerName,
+    bookingType: summary.bookingType,
+    tripType: summary.tripType,
+    packageTitle: summary.packageTitle,
+    selectedService: summary.packageTitle,
+    travelDate: summary.travelDate,
+    returnDate: summary.returnDate,
+    pickupTime: summary.pickupTime,
+    pickupLocation: summary.pickupLocation,
+    dropLocation: summary.dropLocation,
+    passengers: summary.passengers,
+    status: summary.status,
+    quotationStatus: quotationStatus(summary),
+    paymentStatus: summary.paymentStatus,
+    tripStatus: summary.status,
+    amount: summary.amount,
+    paidAmount: summary.paidAmount,
+    balanceAmount: summary.balanceAmount,
+    confirmationMessage: summary.confirmationMessage,
+    includedItems: summary.includedItems,
+    excludedItems: summary.excludedItems,
+    costItems: summary.costItems,
+    car: canShowAssignment && summary.car
+      ? {
+          name: summary.car.name,
+          brand: summary.car.brand,
+          model: summary.car.model,
+          category: summary.car.category,
+          seats: summary.car.seats,
+          ac: summary.car.ac
+        }
+      : null,
+    driver: canShowAssignment && summary.driver
+      ? {
+          name: summary.driver.name,
+          phone: summary.driver.phone,
+          rating: summary.driver.rating
+        }
+      : null,
+    liveLocation: onTrip && summary.liveLocation
+      ? {
+          url: summary.liveLocation.url || "",
+          note: summary.liveLocation.note || "",
+          updatedAt: summary.liveLocation.updatedAt || ""
+        }
+      : null
+  };
+}
+
 function normalizeCarName(value) {
   const name = String(value || "").trim().replace(/\s+/g, " ");
   if (!name) throw validationError("Car name is required");
@@ -620,6 +718,7 @@ const FIELD_LABELS = {
   email: "email address",
   bookingType: "booking type",
   tripType: "trip type",
+  trackingCode: "tracking code",
   travelDate: "travel date",
   returnDate: "return date",
   pickupTime: "pickup time",
@@ -771,9 +870,12 @@ function createBooking(store, payload) {
   if (capacity && passengers > capacity) {
     throw validationError(`Selected car allows ${capacity} passenger(s). Reduce passengers or choose a bigger car.`);
   }
+  const trackingCode = generateTrackingCode();
 
   const booking = {
     id: bookingId(store, effectiveTravelDate),
+    trackingCodeHash: hashTrackingCode(trackingCode),
+    trackingCodeHint: `ends with ${trackingCode.slice(-2)}`,
     bookingType,
     tripType,
     packageId: payload.packageId || "",
@@ -830,6 +932,10 @@ function createBooking(store, payload) {
       }
     ]
   };
+  Object.defineProperty(booking, "_trackingCode", {
+    value: trackingCode,
+    enumerable: false
+  });
 
   const duplicate = findRecentDuplicateBooking(store, booking);
   if (duplicate) {
@@ -843,12 +949,13 @@ function createBooking(store, payload) {
 }
 
 function bookingSummary(store, booking) {
+  const { trackingCodeHash, ...safeBooking } = booking;
   const car = store.cars.find((item) => item.id === booking.assignedCarId);
   const driver = store.drivers.find((item) => item.id === booking.assignedDriverId);
   const paidAmount = parseMoney(booking.payment && booking.payment.paidAmount);
   const amount = parseMoney(booking.amount);
   return {
-    ...booking,
+    ...safeBooking,
     car,
     driver,
     paidAmount,
@@ -1054,15 +1161,27 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const booking = createBooking(store, body);
     await saveStore(store);
-    sendJson(res, 201, { booking: bookingSummary(store, booking) });
+    sendJson(res, 201, { booking: { ...customerTrackingSummary(store, booking), trackingCode: booking._trackingCode } });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/bookings/track") {
+    const body = await readBody(req);
+    requireFields(body, ["bookingId", "phone", "trackingCode"]);
+    const booking = store.bookings.find((item) => item.id === String(body.bookingId || "").trim());
+    if (!booking) return sendError(res, 404, "Booking not found. Check your booking ID.");
+    try {
+      verifyBookingTrackingAccess(booking, body);
+    } catch (error) {
+      return sendError(res, error.status || 403, error.message || "Secure tracking verification failed.");
+    }
+    sendJson(res, 200, { booking: customerTrackingSummary(store, booking) });
     return;
   }
 
   const bookingMatch = url.pathname.match(/^\/api\/bookings\/([^/]+)$/);
   if (req.method === "GET" && bookingMatch) {
-    const booking = store.bookings.find((item) => item.id === bookingMatch[1]);
-    if (!booking) return sendError(res, 404, "Booking not found");
-    sendJson(res, 200, { booking: bookingSummary(store, booking) });
+    sendError(res, 403, "Use secure tracking with booking ID, registered mobile number, and tracking code.");
     return;
   }
 
@@ -1070,6 +1189,20 @@ async function handleApi(req, res) {
   if (req.method === "GET" && billMatch) {
     const booking = store.bookings.find((item) => item.id === billMatch[1]);
     if (!booking) return sendError(res, 404, "Booking not found");
+    const billPhone = url.searchParams.get("phone") || "";
+    const billTrackingCode = url.searchParams.get("trackingCode") || url.searchParams.get("code") || "";
+    if (!billPhone || !billTrackingCode) {
+      return sendError(res, 403, "Use secure bill link from booking tracking.");
+    }
+    try {
+      verifyBookingTrackingAccess(booking, {
+        bookingId: booking.id,
+        phone: billPhone,
+        trackingCode: billTrackingCode
+      });
+    } catch (error) {
+      return sendError(res, error.status || 403, error.message || "Secure bill verification failed.");
+    }
     sendJson(res, 200, {
       business: publicBusiness(store.business),
       booking: bookingSummary(store, booking)
@@ -1082,6 +1215,15 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const booking = store.bookings.find((item) => item.id === paymentMatch[1]);
     if (!booking) return sendError(res, 404, "Booking not found");
+    try {
+      verifyBookingTrackingAccess(booking, {
+        ...body,
+        bookingId: booking.id,
+        phone: body.trackingPhone || body.phone
+      });
+    } catch (error) {
+      return sendError(res, error.status || 403, error.message || "Secure tracking verification failed.");
+    }
     if (parseMoney(booking.amount) <= 0 || booking.paymentStatus === "waiting_for_amount") {
       return sendError(res, 422, "Owner has not confirmed the payable amount yet");
     }
@@ -1105,7 +1247,7 @@ async function handleApi(req, res) {
       message: "Payment details submitted for owner verification"
     });
     await saveStore(store);
-    sendJson(res, 200, { booking: bookingSummary(store, booking) });
+    sendJson(res, 200, { booking: customerTrackingSummary(store, booking) });
     return;
   }
 
@@ -1461,6 +1603,19 @@ async function handleApi(req, res) {
     if (!booking) return sendError(res, 404, "Assigned booking not found");
     booking.status = String(body.status || booking.status);
     booking.notes = String(body.notes || booking.notes || "");
+    if (booking.status === "on_trip") {
+      const liveUrl = String(body.liveLocationUrl || "").trim();
+      const liveNote = String(body.liveLocationNote || "").trim();
+      if (liveUrl || liveNote) {
+        booking.liveLocation = {
+          url: liveUrl,
+          note: liveNote,
+          updatedAt: now()
+        };
+      }
+    } else {
+      delete booking.liveLocation;
+    }
     booking.updatedAt = now();
     booking.history.push({
       at: now(),

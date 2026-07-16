@@ -136,6 +136,18 @@
             Driver note
             <input name="notes" value="${VRK.escapeHtml(booking.notes || "")}">
           </label>
+          <label>
+            Live location link
+            <input name="liveLocationUrl" value="${VRK.escapeHtml(
+              booking.liveLocation ? booking.liveLocation.url || "" : ""
+            )}" placeholder="Paste Google Maps live location link">
+          </label>
+          <label>
+            Location note
+            <input name="liveLocationNote" value="${VRK.escapeHtml(
+              booking.liveLocation ? booking.liveLocation.note || "" : ""
+            )}" placeholder="Example: Near airport toll">
+          </label>
           <button class="primary" type="submit">Update trip</button>
         </form>
       </article>

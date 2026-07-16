@@ -674,7 +674,7 @@ textarea.is-invalid {
 
 .track-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) minmax(120px, 0.7fr) auto;
   gap: 10px;
 }
 
@@ -772,6 +772,40 @@ textarea.is-invalid {
 .mini-status small {
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.tracking-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tracking-summary-grid span,
+.secure-code-box,
+.live-location-box {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tracking-summary-grid b,
+.secure-code-box b,
+.live-location-box b {
+  color: var(--ink);
+}
+
+.secure-code-box span {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--primary-dark);
+}
+
+.live-location-box {
+  background: rgba(15, 118, 110, 0.08);
 }
 
 .mini-list {
@@ -2192,6 +2226,7 @@ textarea.is-invalid {
   .review-grid,
   .contact-lines,
   .booking-detail-grid,
+  .tracking-summary-grid,
   .booking-ops,
   .checklist-grid,
   .car-rate-strip,

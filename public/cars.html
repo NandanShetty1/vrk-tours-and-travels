@@ -97,7 +97,9 @@
         <div class="tracker-box" id="trackBooking">
           <h2>Track booking</h2>
           <form id="trackForm" class="track-form">
-            <input name="bookingId" placeholder="Booking ID, example VRK-20260714-ABC123" required>
+            <input name="bookingId" placeholder="Booking ID, example VRK-2026-0001" required>
+            <input name="phone" inputmode="tel" placeholder="Registered mobile number" required>
+            <input name="trackingCode" inputmode="numeric" maxlength="6" placeholder="6-digit tracking code" required>
             <button class="secondary" type="submit">Check</button>
           </form>
           <div id="trackResult" class="track-result" aria-live="polite"></div>
