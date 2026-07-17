@@ -1980,8 +1980,10 @@
   function canSubmitPayment(booking) {
     return (
       Number(booking.amount || 0) > 0 &&
-      ["payment_required", "advance_paid"].includes(booking.paymentStatus) &&
-      !["pending_owner_confirmation", "cancelled"].includes(booking.status)
+      ["advance_pending", "balance_pending"].includes(booking.paymentStatus) &&
+      !["request_submitted", "under_review", "rejected", "cancelled_by_customer", "cancelled_by_admin", "closed"].includes(
+        booking.status
+      )
     );
   }
 
@@ -1990,7 +1992,9 @@
       waiting_for_owner: "Waiting for owner quotation",
       quotation_pending: "Quotation pending",
       quotation_ready: "Quotation ready",
-      cancelled: "Cancelled"
+      rejected: "Rejected",
+      cancelled_by_customer: "Cancelled by customer",
+      cancelled_by_admin: "Cancelled by admin"
     };
     return labels[value] || VRK.statusLabel(value || "quotation_pending");
   }
@@ -2033,7 +2037,7 @@
   }
 
   function liveLocationPanel(booking) {
-    if (booking.status !== "on_trip") return "";
+    if (!["trip_started", "on_trip"].includes(booking.status)) return "";
     if (!booking.liveLocation) {
       return `<p class="note-line">Live location will appear here only while the active trip is running and the driver shares it.</p>`;
     }
@@ -2065,8 +2069,14 @@
     if (booking.paymentStatus === "payment_submitted") {
       return `<p class="note-line">Payment details submitted. Owner will verify and update the bill.</p>`;
     }
-    if (["paid", "advance_paid"].includes(booking.paymentStatus)) {
-      return `<p class="note-line">Payment verified by owner.</p>`;
+    if (booking.paymentStatus === "advance_paid") {
+      return `<p class="note-line">Advance payment verified by owner.</p>`;
+    }
+    if (booking.paymentStatus === "fully_paid") {
+      return `<p class="note-line">Full payment verified by owner.</p>`;
+    }
+    if (booking.paymentStatus === "refunded") {
+      return `<p class="note-line">Refund completed by owner.</p>`;
     }
     if (!canSubmitPayment(booking)) return "";
     return `

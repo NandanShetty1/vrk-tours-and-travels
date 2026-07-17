@@ -39,15 +39,66 @@
     });
   }
 
+  const statusLabels = {
+    request_submitted: "Request Submitted",
+    under_review: "Under Review",
+    quotation_accepted: "Quotation Accepted",
+    advance_pending: "Advance Pending",
+    advance_paid: "Advance Paid",
+    booking_confirmed: "Booking Confirmed",
+    driver_assigned: "Driver assigned",
+    driver_accepted: "Driver accepted",
+    driver_arriving: "Driver arriving",
+    driver_reached: "Driver reached",
+    trip_started: "Trip started",
+    on_trip: "On trip",
+    trip_completed: "Trip Completed",
+    balance_pending: "Balance pending",
+    fully_paid: "Fully paid",
+    closed: "Closed",
+    rejected: "Rejected",
+    cancelled_by_customer: "Cancelled by customer",
+    cancelled_by_admin: "Cancelled by admin",
+    refund_pending: "Refund pending",
+    refunded: "Refunded",
+    waiting_for_amount: "Quotation pending",
+    payment_submitted: "Payment submitted",
+    not_required: "Not required",
+    pending_owner_confirmation: "Request Submitted",
+    confirmed_waiting_payment: "Advance Pending",
+    payment_required: "Advance Pending",
+    payment_verified: "Booking Confirmed",
+    assigned: "Driver assigned",
+    completed: "Trip Completed",
+    cancelled: "Cancelled by admin",
+    paid: "Fully paid"
+  };
+
   function statusLabel(value) {
-    return String(value || "pending").replace(/_/g, " ");
+    return statusLabels[value] || String(value || "pending").replace(/_/g, " ");
   }
 
   function statusClass(value) {
     const status = String(value || "pending");
-    if (["completed", "paid", "advance_paid", "payment_verified"].includes(status)) return "good";
-    if (["cancelled"].includes(status)) return "danger";
-    if (["assigned", "driver_accepted", "on_trip", "payment_submitted"].includes(status)) return "active";
+    if (["trip_completed", "fully_paid", "closed", "advance_paid", "refunded", "completed", "paid", "payment_verified"].includes(status)) {
+      return "good";
+    }
+    if (["rejected", "cancelled_by_customer", "cancelled_by_admin", "refund_pending", "cancelled"].includes(status)) return "danger";
+    if (
+      [
+        "booking_confirmed",
+        "driver_assigned",
+        "driver_accepted",
+        "driver_arriving",
+        "driver_reached",
+        "trip_started",
+        "on_trip",
+        "payment_submitted",
+        "assigned"
+      ].includes(status)
+    ) {
+      return "active";
+    }
     return "warn";
   }
 
@@ -74,7 +125,11 @@
   }
 
   function watchLiveChanges(callback) {
-    if (!window.EventSource) return null;
+    const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (!isLocal || !window.EventSource) {
+      const timer = window.setInterval(callback, 30000);
+      return { close: () => window.clearInterval(timer) };
+    }
     const events = new EventSource("/api/events");
     events.addEventListener("change", callback);
     return events;

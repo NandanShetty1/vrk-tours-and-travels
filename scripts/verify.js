@@ -350,8 +350,8 @@ async function main() {
       body: JSON.stringify({
         assignedDriverId: driverResult.item.id,
         assignedCarId: carResult.item.id,
-        status: "confirmed_waiting_payment",
-        paymentStatus: "payment_required",
+        status: "advance_pending",
+        paymentStatus: "advance_pending",
         costItems: "Base fare = 2800\nToll and parking = 300\nOwner discount = -100",
         includedItems: "AC sedan\nDriver allowance\nPickup and drop",
         excludedItems: "Extra kilometers\nNight charges",
@@ -384,8 +384,8 @@ async function main() {
       method: "POST",
       headers: { "X-Admin-Pin": "1234" },
       body: JSON.stringify({
-        status: "assigned",
-        paymentStatus: "paid"
+        status: "driver_assigned",
+        paymentStatus: "advance_paid"
       })
     });
 
@@ -421,6 +421,9 @@ async function main() {
         phone: bookingPayload.phone,
         trackingCode: created.booking.trackingCode
       })
+    });
+    const adminAfterLifecycle = await request(base, "/api/admin-data", {
+      headers: { "X-Admin-Pin": "1234" }
     });
     let insecureBillRejected = false;
     try {
@@ -467,6 +470,7 @@ async function main() {
           insecureBillRejected,
           secureTrackingWorks: trackedAfterCreate.booking.id === created.booking.id,
           bookingChecksSaved: confirmed.booking.checks && confirmed.booking.checks.fareShared === true,
+          bookingStatusAfterCreate: created.booking.status,
           bookingId: created.booking.id,
           serialBookingId: /^VRK-\d{4}-\d{4,}$/.test(created.booking.id),
           trackingCodeIssued: /^\d{6}$/.test(created.booking.trackingCode || ""),
@@ -475,6 +479,10 @@ async function main() {
           ownerConfirmedAmount: confirmed.booking.amount,
           paymentStatusAfterCustomer: paid.booking.paymentStatus,
           adminVerifiedStatus: verified.booking.status,
+          adminVerifiedPaymentStatus: verified.booking.paymentStatus,
+          statusHistoryEvents: adminAfterLifecycle.bookingStatusHistory.filter(
+            (item) => item.bookingId === created.booking.id
+          ).length,
           driverTrips: driverData.bookings.length,
           finalTrackedStatus: tracked.booking.status,
           liveLocationVisibleDuringTrip: Boolean(tracked.booking.liveLocation && tracked.booking.liveLocation.url),

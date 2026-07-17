@@ -808,6 +808,24 @@ textarea.is-invalid {
   background: rgba(15, 118, 110, 0.08);
 }
 
+.status-history {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.status-history b {
+  color: var(--ink);
+}
+
+.status-history small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .mini-list {
   display: grid;
   gap: 4px;

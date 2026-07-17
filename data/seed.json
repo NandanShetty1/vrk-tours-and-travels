@@ -35,5 +35,6 @@
     "showOnEveryVisit": false,
     "image": ""
   },
-  "bookings": []
+  "bookings": [],
+  "bookingStatusHistory": []
 }

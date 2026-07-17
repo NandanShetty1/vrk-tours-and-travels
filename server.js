@@ -368,6 +368,126 @@ function findCustomerForAuth(store, payload) {
   });
 }
 
+const BOOKING_STATUSES = [
+  "request_submitted",
+  "under_review",
+  "quotation_accepted",
+  "advance_pending",
+  "advance_paid",
+  "booking_confirmed",
+  "driver_assigned",
+  "driver_accepted",
+  "driver_arriving",
+  "driver_reached",
+  "trip_started",
+  "on_trip",
+  "trip_completed",
+  "balance_pending",
+  "fully_paid",
+  "closed",
+  "rejected",
+  "cancelled_by_customer",
+  "cancelled_by_admin",
+  "refund_pending",
+  "refunded"
+];
+
+const DRIVER_BOOKING_STATUSES = [
+  "driver_assigned",
+  "driver_accepted",
+  "driver_arriving",
+  "driver_reached",
+  "trip_started",
+  "on_trip",
+  "trip_completed"
+];
+
+const PAYMENT_STATUSES = [
+  "waiting_for_amount",
+  "advance_pending",
+  "payment_submitted",
+  "advance_paid",
+  "balance_pending",
+  "fully_paid",
+  "not_required",
+  "refund_pending",
+  "refunded"
+];
+
+const LEGACY_STATUS_MAP = {
+  pending_owner_confirmation: "request_submitted",
+  confirmed_waiting_payment: "advance_pending",
+  payment_submitted: "advance_pending",
+  payment_verified: "booking_confirmed",
+  assigned: "driver_assigned",
+  driver_accepted: "driver_accepted",
+  on_trip: "on_trip",
+  completed: "trip_completed",
+  cancelled: "cancelled_by_admin",
+  paid: "fully_paid"
+};
+
+const LEGACY_PAYMENT_STATUS_MAP = {
+  payment_required: "advance_pending",
+  paid: "fully_paid",
+  cancelled: "not_required"
+};
+
+function normalizeBookingStatus(value, fallback = "request_submitted") {
+  const status = String(value || fallback).trim();
+  const mapped = LEGACY_STATUS_MAP[status] || status;
+  return BOOKING_STATUSES.includes(mapped) ? mapped : fallback;
+}
+
+function normalizePaymentStatus(value, fallback = "waiting_for_amount") {
+  const status = String(value || fallback).trim();
+  const mapped = LEGACY_PAYMENT_STATUS_MAP[status] || status;
+  return PAYMENT_STATUSES.includes(mapped) ? mapped : fallback;
+}
+
+function statusHistoryForBooking(store, bookingId) {
+  return (store.bookingStatusHistory || [])
+    .filter((item) => item.bookingId === bookingId)
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+}
+
+function recordBookingStatusHistory(store, booking, before, meta = {}) {
+  store.bookingStatusHistory = Array.isArray(store.bookingStatusHistory) ? store.bookingStatusHistory : [];
+  const previous = before || {};
+  const changes = [];
+  [
+    ["status", "Booking status"],
+    ["paymentStatus", "Payment status"],
+    ["assignedDriverId", "Driver assignment"],
+    ["assignedCarId", "Car assignment"],
+    ["amount", "Confirmed amount"]
+  ].forEach(([field, label]) => {
+    const fromValue = previous[field] === undefined || previous[field] === null ? "" : String(previous[field]);
+    const toValue = booking[field] === undefined || booking[field] === null ? "" : String(booking[field]);
+    if (fromValue !== toValue) {
+      changes.push({ field, label, from: fromValue, to: toValue });
+    }
+  });
+  if (!changes.length) return null;
+  const entry = {
+    id: id("BKH"),
+    bookingId: booking.id,
+    at: now(),
+    by: meta.by || "system",
+    source: meta.source || "system",
+    note: String(meta.note || "").trim(),
+    changes
+  };
+  store.bookingStatusHistory.push(entry);
+  booking.history = Array.isArray(booking.history) ? booking.history : [];
+  booking.history.push({
+    at: entry.at,
+    by: entry.by,
+    message: entry.note || changes.map((change) => `${change.label}: ${change.from || "empty"} to ${change.to || "empty"}`).join("; ")
+  });
+  return entry;
+}
+
 function normalizeStore(store) {
   store.business = {
     qrImage: "",
@@ -378,6 +498,13 @@ function normalizeStore(store) {
   store.banners = Array.isArray(store.banners) ? store.banners : [];
   store.gallery = Array.isArray(store.gallery) ? store.gallery : [];
   store.customers = Array.isArray(store.customers) ? store.customers : [];
+  store.bookings = Array.isArray(store.bookings) ? store.bookings : [];
+  store.bookingStatusHistory = Array.isArray(store.bookingStatusHistory) ? store.bookingStatusHistory : [];
+  store.bookings.forEach((booking) => {
+    booking.status = normalizeBookingStatus(booking.status);
+    booking.paymentStatus = normalizePaymentStatus(booking.paymentStatus);
+    booking.history = Array.isArray(booking.history) ? booking.history : [];
+  });
   store.popupSettings = {
     enabled: false,
     title: "Plan your next trip with VRK",
@@ -411,7 +538,8 @@ function adminData(store) {
     tourPackages: store.tourPackages,
     dayPackages: store.dayPackages,
     drivers: store.drivers,
-    bookings: store.bookings,
+    bookings: store.bookings.map((booking) => bookingSummary(store, booking)),
+    bookingStatusHistory: store.bookingStatusHistory,
     banners: store.banners,
     gallery: store.gallery,
     popupSettings: store.popupSettings
@@ -521,7 +649,7 @@ function carPassengerCapacity(item) {
 function findRecentDuplicateBooking(store, booking) {
   const createdAt = Date.now();
   return (store.bookings || []).find((item) => {
-    if (item.status === "cancelled") return false;
+    if (["cancelled_by_customer", "cancelled_by_admin", "rejected", "closed"].includes(normalizeBookingStatus(item.status))) return false;
     const ageMs = createdAt - new Date(item.createdAt || 0).getTime();
     return (
       ageMs >= 0 &&
@@ -572,16 +700,29 @@ function verifyBookingTrackingAccess(booking, payload) {
 }
 
 function quotationStatus(booking) {
-  if (booking.status === "cancelled") return "cancelled";
+  const status = normalizeBookingStatus(booking.status);
+  if (["cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(status)) return status;
   if (parseMoney(booking.amount) > 0) return "quotation_ready";
-  if (booking.status === "pending_owner_confirmation") return "waiting_for_owner";
+  if (["request_submitted", "under_review"].includes(status)) return "waiting_for_owner";
   return "quotation_pending";
 }
 
 function customerTrackingSummary(store, booking) {
   const summary = bookingSummary(store, booking);
-  const canShowAssignment = !["pending_owner_confirmation", "cancelled"].includes(summary.status);
-  const onTrip = summary.status === "on_trip";
+  const canShowAssignment = [
+    "booking_confirmed",
+    "driver_assigned",
+    "driver_accepted",
+    "driver_arriving",
+    "driver_reached",
+    "trip_started",
+    "on_trip",
+    "trip_completed",
+    "balance_pending",
+    "fully_paid",
+    "closed"
+  ].includes(summary.status);
+  const onTrip = ["trip_started", "on_trip"].includes(summary.status);
   return {
     id: summary.id,
     customerName: summary.customerName,
@@ -915,7 +1056,7 @@ function createBooking(store, payload) {
     includedItems: defaultInclusions(item, bookingType),
     excludedItems: [],
     confirmationMessage: "",
-    status: "pending_owner_confirmation",
+    status: "request_submitted",
     assignedDriverId: "",
     assignedCarId: bookingType === "car" ? payload.packageId || "" : "",
     paymentStatus: "waiting_for_amount",
@@ -924,13 +1065,7 @@ function createBooking(store, payload) {
     notes: "",
     createdAt: now(),
     updatedAt: now(),
-    history: [
-      {
-        at: now(),
-        by: "customer",
-        message: "Booking request created"
-      }
-    ]
+    history: []
   };
   Object.defineProperty(booking, "_trackingCode", {
     value: trackingCode,
@@ -945,6 +1080,12 @@ function createBooking(store, payload) {
   }
 
   store.bookings.unshift(booking);
+  recordBookingStatusHistory(
+    store,
+    booking,
+    { status: "", paymentStatus: "", assignedDriverId: "", assignedCarId: "", amount: "" },
+    { by: "customer", source: "customer_booking", note: "Booking request submitted" }
+  );
   return booking;
 }
 
@@ -958,6 +1099,7 @@ function bookingSummary(store, booking) {
     ...safeBooking,
     car,
     driver,
+    statusHistory: statusHistoryForBooking(store, booking.id),
     paidAmount,
     balanceAmount: Math.max(amount - paidAmount, 0)
   };
@@ -1228,6 +1370,7 @@ async function handleApi(req, res) {
       return sendError(res, 422, "Owner has not confirmed the payable amount yet");
     }
     requireFields(body, ["payerName", "paymentMethod"]);
+    const before = { ...booking };
     booking.payment = {
       payerName: String(body.payerName).trim(),
       paymentMethod: String(body.paymentMethod).trim(),
@@ -1237,14 +1380,14 @@ async function handleApi(req, res) {
       submittedAt: now()
     };
     booking.paymentStatus = "payment_submitted";
-    if (booking.status === "confirmed_waiting_payment") {
-      booking.status = "payment_submitted";
+    if (["quotation_accepted", "advance_pending"].includes(booking.status)) {
+      booking.status = "advance_pending";
     }
     booking.updatedAt = now();
-    booking.history.push({
-      at: now(),
+    recordBookingStatusHistory(store, booking, before, {
       by: "customer",
-      message: "Payment details submitted for owner verification"
+      source: "customer_payment",
+      note: "Payment details submitted for owner verification"
     });
     await saveStore(store);
     sendJson(res, 200, { booking: customerTrackingSummary(store, booking) });
@@ -1513,6 +1656,7 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const booking = store.bookings.find((item) => item.id === assignMatch[1]);
     if (!booking) return sendError(res, 404, "Booking not found");
+    const before = { ...booking };
     const costItems = parseCostItems(body.costItems, body.amount || booking.amount);
     const calculatedAmount = costItems.length ? totalCost(costItems) : parseMoney(body.amount || booking.amount);
     booking.assignedDriverId = body.assignedDriverId || "";
@@ -1526,19 +1670,22 @@ async function handleApi(req, res) {
       booking.excludedItems = normalizeArrayText(body.excludedItems);
     }
     booking.confirmationMessage = String(body.confirmationMessage || "").trim();
-    booking.status = body.status || (booking.assignedDriverId ? "assigned" : "confirmed_waiting_payment");
-    booking.paymentStatus =
+    booking.status = normalizeBookingStatus(
+      body.status || (booking.assignedDriverId ? "driver_assigned" : calculatedAmount > 0 ? "quotation_accepted" : booking.status)
+    );
+    booking.paymentStatus = normalizePaymentStatus(
       body.paymentStatus ||
-      (calculatedAmount > 0 && booking.paymentStatus === "waiting_for_amount"
-        ? "payment_required"
-        : booking.paymentStatus);
+        (calculatedAmount > 0 && booking.paymentStatus === "waiting_for_amount"
+          ? "advance_pending"
+          : booking.paymentStatus)
+    );
     booking.checks = bookingChecksFromBody(body, booking.checks);
     booking.notes = String(body.notes || booking.notes || "");
     booking.updatedAt = now();
-    booking.history.push({
-      at: now(),
-      by: "admin",
-      message: `Owner updated booking to ${booking.status} with amount ${calculatedAmount}`
+    recordBookingStatusHistory(store, booking, before, {
+      by: req.admin && req.admin.name ? req.admin.name : "admin",
+      source: "admin_booking_update",
+      note: `Owner updated booking lifecycle and amount ${calculatedAmount}`
     });
     await saveStore(store);
     sendJson(res, 200, { booking: bookingSummary(store, booking) });
@@ -1551,16 +1698,20 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const booking = store.bookings.find((item) => item.id === adminStatusMatch[1]);
     if (!booking) return sendError(res, 404, "Booking not found");
-    booking.status = String(body.status || booking.status);
-    booking.paymentStatus = String(body.paymentStatus || booking.paymentStatus);
-    if (["paid", "advance_paid"].includes(booking.paymentStatus) && booking.status === "payment_submitted") {
-      booking.status = "payment_verified";
+    const before = { ...booking };
+    booking.status = normalizeBookingStatus(body.status || booking.status);
+    booking.paymentStatus = normalizePaymentStatus(body.paymentStatus || booking.paymentStatus);
+    if (booking.paymentStatus === "advance_paid" && booking.status === "advance_pending") {
+      booking.status = "advance_paid";
+    }
+    if (booking.paymentStatus === "fully_paid" && ["balance_pending", "trip_completed"].includes(booking.status)) {
+      booking.status = "fully_paid";
     }
     booking.updatedAt = now();
-    booking.history.push({
-      at: now(),
-      by: "admin",
-      message: `Status changed to ${booking.status}; payment ${booking.paymentStatus}`
+    recordBookingStatusHistory(store, booking, before, {
+      by: req.admin && req.admin.name ? req.admin.name : "admin",
+      source: "admin_status_update",
+      note: `Status changed to ${booking.status}; payment ${booking.paymentStatus}`
     });
     await saveStore(store);
     sendJson(res, 200, { booking: bookingSummary(store, booking) });
@@ -1601,9 +1752,14 @@ async function handleApi(req, res) {
       (item) => item.id === driverStatusMatch[1] && item.assignedDriverId === driver.id
     );
     if (!booking) return sendError(res, 404, "Assigned booking not found");
-    booking.status = String(body.status || booking.status);
+    const before = { ...booking };
+    const driverStatus = normalizeBookingStatus(body.status || booking.status);
+    if (!DRIVER_BOOKING_STATUSES.includes(driverStatus)) {
+      return sendError(res, 422, "Driver can update only driver and trip statuses.");
+    }
+    booking.status = driverStatus;
     booking.notes = String(body.notes || booking.notes || "");
-    if (booking.status === "on_trip") {
+    if (["trip_started", "on_trip"].includes(booking.status)) {
       const liveUrl = String(body.liveLocationUrl || "").trim();
       const liveNote = String(body.liveLocationNote || "").trim();
       if (liveUrl || liveNote) {
@@ -1617,10 +1773,10 @@ async function handleApi(req, res) {
       delete booking.liveLocation;
     }
     booking.updatedAt = now();
-    booking.history.push({
-      at: now(),
+    recordBookingStatusHistory(store, booking, before, {
       by: driver.name,
-      message: body.notes ? `${booking.status}: ${body.notes}` : `Status changed to ${booking.status}`
+      source: "driver_status_update",
+      note: body.notes ? `${booking.status}: ${body.notes}` : `Status changed to ${booking.status}`
     });
     await saveStore(store);
     sendJson(res, 200, { booking: bookingSummary(store, booking) });

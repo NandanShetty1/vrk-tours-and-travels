@@ -26,9 +26,11 @@
   function render() {
     driverName.textContent = `${state.data.driver.name}'s trips`;
     const active = state.data.bookings.filter((booking) =>
-      ["payment_verified", "assigned", "driver_accepted", "on_trip"].includes(booking.status)
+      ["booking_confirmed", "driver_assigned", "driver_accepted", "driver_arriving", "driver_reached", "trip_started", "on_trip"].includes(
+        booking.status
+      )
     ).length;
-    const completed = state.data.bookings.filter((booking) => booking.status === "completed").length;
+    const completed = state.data.bookings.filter((booking) => booking.status === "trip_completed").length;
     metrics.innerHTML = [
       ["Assigned trips", state.data.bookings.length],
       ["Active", active],
@@ -122,7 +124,7 @@
           <label>
             Trip status
             <select name="status">
-              ${["payment_verified", "assigned", "driver_accepted", "on_trip", "completed"]
+              ${["driver_assigned", "driver_accepted", "driver_arriving", "driver_reached", "trip_started", "on_trip", "trip_completed"]
                 .map(
                   (status) =>
                     `<option value="${status}" ${booking.status === status ? "selected" : ""}>${VRK.statusLabel(

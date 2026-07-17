@@ -209,12 +209,14 @@
   function renderMetrics() {
     const bookings = state.data.bookings;
     const activeTrips = bookings.filter((booking) =>
-      ["assigned", "driver_accepted", "on_trip", "payment_verified"].includes(booking.status)
+      ["driver_assigned", "driver_accepted", "driver_arriving", "driver_reached", "trip_started", "on_trip"].includes(
+        booking.status
+      )
     ).length;
-    const pending = bookings.filter((booking) => booking.status === "pending_owner_confirmation").length;
+    const pending = bookings.filter((booking) => ["request_submitted", "under_review"].includes(booking.status)).length;
     const paymentReview = bookings.filter((booking) => booking.paymentStatus === "payment_submitted").length;
     const revenue = bookings
-      .filter((booking) => booking.status !== "cancelled")
+      .filter((booking) => !["cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(booking.status))
       .reduce((sum, booking) => sum + Number(booking.amount || 0), 0);
 
     metrics.innerHTML = [
@@ -255,6 +257,42 @@
     return tripTypeLabels[booking.tripType] || "Custom trip";
   }
 
+  const bookingStatusOptions = [
+    "request_submitted",
+    "under_review",
+    "quotation_accepted",
+    "advance_pending",
+    "advance_paid",
+    "booking_confirmed",
+    "driver_assigned",
+    "driver_accepted",
+    "driver_arriving",
+    "driver_reached",
+    "trip_started",
+    "on_trip",
+    "trip_completed",
+    "balance_pending",
+    "fully_paid",
+    "closed",
+    "rejected",
+    "cancelled_by_customer",
+    "cancelled_by_admin",
+    "refund_pending",
+    "refunded"
+  ];
+
+  const paymentStatusOptions = [
+    "waiting_for_amount",
+    "advance_pending",
+    "payment_submitted",
+    "advance_paid",
+    "balance_pending",
+    "fully_paid",
+    "not_required",
+    "refund_pending",
+    "refunded"
+  ];
+
   function listText(value) {
     if (Array.isArray(value)) return value.join(" | ");
     return value || "";
@@ -285,6 +323,28 @@
     return details
       .map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`)
       .join("");
+  }
+
+  function statusHistoryTimeline(booking) {
+    const history = Array.isArray(booking.statusHistory) ? booking.statusHistory.slice(-6).reverse() : [];
+    if (!history.length) {
+      return `<div class="status-history"><b>Status history</b><small>No lifecycle history recorded yet.</small></div>`;
+    }
+    return `
+      <div class="status-history">
+        <b>Status history</b>
+        ${history
+          .map((entry) => {
+            const changes = (entry.changes || [])
+              .map((change) => `${change.label}: ${change.from || "empty"} to ${change.to || "empty"}`)
+              .join("; ");
+            return `<small>${VRK.dateTimeLabel(entry.at)} - ${VRK.escapeHtml(entry.by || entry.source || "system")}: ${VRK.escapeHtml(
+              entry.note || changes
+            )}</small>`;
+          })
+          .join("")}
+      </div>
+    `;
   }
 
   function options(items, selectedId, labelField) {
@@ -328,7 +388,17 @@
 
   function nextBookingAction(booking) {
     const checks = bookingChecks(booking);
-    if (booking.status === "cancelled") return "Booking cancelled";
+    if (["cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(booking.status)) return "Booking stopped";
+    if (booking.status === "request_submitted") return "Move to Under Review after checking the request";
+    if (booking.status === "under_review") return "Prepare quotation and share route/fare details";
+    if (booking.status === "quotation_accepted") return "Collect advance or mark advance pending";
+    if (booking.status === "advance_pending") return "Wait for advance payment or follow up";
+    if (booking.status === "advance_paid") return "Confirm booking and assign vehicle/driver";
+    if (booking.status === "booking_confirmed") return "Assign driver and inform customer";
+    if (booking.status === "trip_completed") return "Check balance payment and close bill";
+    if (booking.status === "balance_pending") return "Collect final balance";
+    if (booking.status === "fully_paid") return "Close booking after final verification";
+    if (booking.status === "closed") return "Booking closed";
     if (!checks.customerContacted) return "Call or WhatsApp customer and confirm request";
     if (!checks.routeVerified || !checks.scheduleConfirmed) return "Verify route, date, time, passengers, and luggage";
     if (!checks.vehicleChecked || !booking.assignedCarId) return "Check car availability and assign vehicle";
@@ -336,7 +406,9 @@
     if (!checks.fareShared) return "Mark fare shared after customer confirmation";
     if (booking.paymentStatus === "payment_submitted" && !checks.paymentChecked) return "Verify payment proof and transaction ID";
     if (!booking.assignedDriverId || !checks.driverInformed) return "Assign/inform driver and share trip details";
-    if (["assigned", "driver_accepted"].includes(booking.status)) return "Monitor pickup and trip start";
+    if (["driver_assigned", "driver_accepted", "driver_arriving", "driver_reached", "trip_started"].includes(booking.status)) {
+      return "Monitor pickup and trip start";
+    }
     if (booking.status === "on_trip" && !checks.tripCompleted) return "Follow trip and close after drop";
     return "Ready for final bill and completion";
   }
@@ -452,6 +524,7 @@
         </div>
         ${contactLinks(booking)}
         ${booking.message ? `<p class="note-line">${VRK.escapeHtml(booking.message)}</p>` : ""}
+        ${statusHistoryTimeline(booking)}
         ${
           payment
             ? `<p class="note-line">Payment submitted by ${VRK.escapeHtml(payment.payerName)} using ${VRK.escapeHtml(
@@ -478,17 +551,7 @@
           <label>
             Status
             <select name="status">
-              ${[
-                "pending_owner_confirmation",
-                "confirmed_waiting_payment",
-                "payment_submitted",
-                "payment_verified",
-                "assigned",
-                "driver_accepted",
-                "on_trip",
-                "completed",
-                "cancelled"
-              ]
+              ${bookingStatusOptions
                 .map(
                   (status) =>
                     `<option value="${status}" ${booking.status === status ? "selected" : ""}>${VRK.statusLabel(
@@ -501,15 +564,7 @@
           <label>
             Payment status
             <select name="paymentStatus">
-              ${[
-                "waiting_for_amount",
-                "payment_required",
-                "payment_submitted",
-                "advance_paid",
-                "paid",
-                "not_required",
-                "refunded"
-              ]
+              ${paymentStatusOptions
                 .map(
                   (status) =>
                     `<option value="${status}" ${
