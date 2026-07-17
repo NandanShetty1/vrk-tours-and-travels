@@ -105,9 +105,9 @@ async function main() {
         email: "owner@vrktravels.local",
         address: "Owner office address",
         upiId: "vrk@upi",
-        paymentInstructions: "Pay only after owner confirms the final fare.",
+        paymentInstructions: "Pay only after owner shares the quotation.",
         invoicePrefix: "VRK",
-        terms: "Final amount is owner confirmed.\nExtra kilometers are chargeable."
+        terms: "Quotation is owner confirmed.\nExtra kilometers are chargeable."
       })
     });
 
@@ -352,10 +352,94 @@ async function main() {
         assignedCarId: carResult.item.id,
         status: "advance_pending",
         paymentStatus: "advance_pending",
-        costItems: "Base fare = 2800\nToll and parking = 300\nOwner discount = -100",
+        quotationBaseFare: 2800,
+        quotationIncludedKm: 180,
+        quotationExtraKmRate: 18,
+        quotationIncludedHours: 10,
+        quotationExtraHourRate: 150,
+        quotationDriverAllowance: 500,
+        quotationNightAllowance: 0,
+        quotationToll: 300,
+        quotationParking: 100,
+        quotationStatePermit: 0,
+        quotationWaitingCharge: 0,
+        quotationDiscount: 700,
+        quotationAdvancePaid: 1000,
+        quotationTotalAmount: 3000,
+        quotationExpiryDate: futureDate(2),
+        quotationAdminRemarks: "Verification quotation with included km and clear charges.",
+        quotationChangeReason: "Initial verification quotation",
         includedItems: "AC sedan\nDriver allowance\nPickup and drop",
         excludedItems: "Extra kilometers\nNight charges",
-        confirmationMessage: "Owner confirmed the final payable amount.",
+        confirmationMessage: "Owner shared the quotation and payable amount.",
+        customerContacted: true,
+        routeVerified: true,
+        scheduleConfirmed: true,
+        vehicleChecked: true,
+        fareShared: true,
+        paymentChecked: false,
+        driverInformed: false,
+        tripCompleted: false
+      })
+    });
+
+    let quotationReasonRequired = false;
+    try {
+      await request(base, `/api/admin/bookings/${created.booking.id}/assign`, {
+        method: "POST",
+        headers: { "X-Admin-Pin": "1234" },
+        body: JSON.stringify({
+          assignedDriverId: driverResult.item.id,
+          assignedCarId: carResult.item.id,
+          status: "advance_pending",
+          paymentStatus: "advance_pending",
+          quotationBaseFare: 3000,
+          quotationIncludedKm: 180,
+          quotationExtraKmRate: 18,
+          quotationIncludedHours: 10,
+          quotationExtraHourRate: 150,
+          quotationDriverAllowance: 500,
+          quotationToll: 300,
+          quotationParking: 100,
+          quotationDiscount: 700,
+          quotationAdvancePaid: 1200,
+          quotationTotalAmount: 3200,
+          quotationExpiryDate: futureDate(2),
+          quotationAdminRemarks: "Changed quotation without reason"
+        })
+      });
+    } catch (error) {
+      quotationReasonRequired = error.status === 422;
+    }
+
+    const requoted = await request(base, `/api/admin/bookings/${created.booking.id}/assign`, {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        assignedDriverId: driverResult.item.id,
+        assignedCarId: carResult.item.id,
+        status: "advance_pending",
+        paymentStatus: "advance_pending",
+        quotationBaseFare: 3000,
+        quotationIncludedKm: 180,
+        quotationExtraKmRate: 18,
+        quotationIncludedHours: 10,
+        quotationExtraHourRate: 150,
+        quotationDriverAllowance: 500,
+        quotationNightAllowance: 0,
+        quotationToll: 300,
+        quotationParking: 100,
+        quotationStatePermit: 0,
+        quotationWaitingCharge: 0,
+        quotationDiscount: 700,
+        quotationAdvancePaid: 1200,
+        quotationTotalAmount: 3200,
+        quotationExpiryDate: futureDate(2),
+        quotationAdminRemarks: "Updated quotation after route review.",
+        quotationChangeReason: "Customer added extra pickup coordination",
+        includedItems: "AC sedan\nDriver allowance\nPickup and drop",
+        excludedItems: "Extra kilometers\nNight charges",
+        confirmationMessage: "Owner updated the quotation after route review.",
         customerContacted: true,
         routeVerified: true,
         scheduleConfirmed: true,
@@ -373,7 +457,7 @@ async function main() {
         payerName: "Verification Customer",
         paymentMethod: "UPI",
         transactionId: "VERIFY123",
-        paidAmount: confirmed.booking.amount,
+        paidAmount: requoted.booking.quotation.advancePaid,
         paymentDate: futureDate(1),
         trackingPhone: bookingPayload.phone,
         trackingCode: created.booking.trackingCode
@@ -469,6 +553,7 @@ async function main() {
           insecureTrackingRejected,
           insecureBillRejected,
           secureTrackingWorks: trackedAfterCreate.booking.id === created.booking.id,
+          quotationReasonRequired,
           bookingChecksSaved: confirmed.booking.checks && confirmed.booking.checks.fareShared === true,
           bookingStatusAfterCreate: created.booking.status,
           bookingId: created.booking.id,
@@ -476,13 +561,16 @@ async function main() {
           trackingCodeIssued: /^\d{6}$/.test(created.booking.trackingCode || ""),
           bookingTripType: created.booking.tripType,
           bookingPickupTime: created.booking.pickupTime,
-          ownerConfirmedAmount: confirmed.booking.amount,
+          ownerConfirmedAmount: requoted.booking.amount,
+          quotationTotalAmount: requoted.booking.quotation.totalAmount,
+          quotationAdvancePaid: requoted.booking.quotation.advancePaid,
           paymentStatusAfterCustomer: paid.booking.paymentStatus,
           adminVerifiedStatus: verified.booking.status,
           adminVerifiedPaymentStatus: verified.booking.paymentStatus,
           statusHistoryEvents: adminAfterLifecycle.bookingStatusHistory.filter(
             (item) => item.bookingId === created.booking.id
           ).length,
+          quotationHistoryEvents: adminAfterLifecycle.quotationHistory.filter((item) => item.bookingId === created.booking.id).length,
           driverTrips: driverData.bookings.length,
           finalTrackedStatus: tracked.booking.status,
           liveLocationVisibleDuringTrip: Boolean(tracked.booking.liveLocation && tracked.booking.liveLocation.url),

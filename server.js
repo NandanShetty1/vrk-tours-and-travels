@@ -414,6 +414,25 @@ const PAYMENT_STATUSES = [
   "refunded"
 ];
 
+const QUOTATION_FIELDS = [
+  ["baseFare", "Base fare", "money"],
+  ["includedKm", "Included km", "number"],
+  ["extraKmRate", "Extra KM rate", "money"],
+  ["includedHours", "Included hrs", "number"],
+  ["extraHourRate", "Extra hr rate", "money"],
+  ["driverAllowance", "Driver allowance", "money"],
+  ["nightAllowance", "Night allowance", "money"],
+  ["toll", "Toll", "money"],
+  ["parking", "Parking", "money"],
+  ["statePermit", "State permit", "money"],
+  ["waitingCharge", "Waiting charge", "money"],
+  ["discount", "Discount", "money"],
+  ["advancePaid", "Advance paid", "money"],
+  ["totalAmount", "Total amount", "money"],
+  ["expiryDate", "Quotation expiry", "text"],
+  ["adminRemarks", "Admin remarks", "text"]
+];
+
 const LEGACY_STATUS_MAP = {
   pending_owner_confirmation: "request_submitted",
   confirmed_waiting_payment: "advance_pending",
@@ -451,6 +470,133 @@ function statusHistoryForBooking(store, bookingId) {
     .sort((a, b) => String(a.at).localeCompare(String(b.at)));
 }
 
+function emptyQuotation() {
+  return {
+    baseFare: 0,
+    includedKm: 0,
+    extraKmRate: 0,
+    includedHours: 0,
+    extraHourRate: 0,
+    driverAllowance: 0,
+    nightAllowance: 0,
+    toll: 0,
+    parking: 0,
+    statePermit: 0,
+    waitingCharge: 0,
+    discount: 0,
+    advancePaid: 0,
+    totalAmount: 0,
+    expiryDate: "",
+    adminRemarks: "",
+    updatedAt: "",
+    updatedBy: ""
+  };
+}
+
+function calculatedQuotationTotal(quotation) {
+  return Math.max(
+    0,
+    parseMoney(quotation.baseFare) +
+      parseMoney(quotation.driverAllowance) +
+      parseMoney(quotation.nightAllowance) +
+      parseMoney(quotation.toll) +
+      parseMoney(quotation.parking) +
+      parseMoney(quotation.statePermit) +
+      parseMoney(quotation.waitingCharge) -
+      parseMoney(quotation.discount)
+  );
+}
+
+function normalizeQuotation(value, booking) {
+  const source = value && typeof value === "object" ? value : {};
+  const quotation = emptyQuotation();
+  QUOTATION_FIELDS.forEach(([field, , type]) => {
+    if (type === "money") quotation[field] = parseMoney(source[field]);
+    else if (type === "number") quotation[field] = parseInteger(source[field]);
+    else quotation[field] = String(source[field] || "").trim();
+  });
+  if (!quotation.totalAmount && booking && parseMoney(booking.amount) > 0) {
+    quotation.baseFare = quotation.baseFare || parseMoney(booking.amount);
+    quotation.totalAmount = parseMoney(booking.amount);
+  }
+  if (!quotation.totalAmount) quotation.totalAmount = calculatedQuotationTotal(quotation);
+  quotation.updatedAt = String(source.updatedAt || "").trim();
+  quotation.updatedBy = String(source.updatedBy || "").trim();
+  return quotation;
+}
+
+function quotationFromBody(body, existing, adminName) {
+  const quotation = normalizeQuotation(existing || {}, null);
+  QUOTATION_FIELDS.forEach(([field, , type]) => {
+    const prefixed = `quotation${field[0].toUpperCase()}${field.slice(1)}`;
+    const value = Object.prototype.hasOwnProperty.call(body, prefixed) ? body[prefixed] : body[field];
+    if (value === undefined) return;
+    if (type === "money") quotation[field] = parseMoney(value);
+    else if (type === "number") quotation[field] = parseInteger(value);
+    else quotation[field] = String(value || "").trim();
+  });
+  if (!quotation.totalAmount) quotation.totalAmount = calculatedQuotationTotal(quotation);
+  quotation.updatedAt = now();
+  quotation.updatedBy = adminName || "admin";
+  return quotation;
+}
+
+function quotationCostItems(quotation, fallbackItems) {
+  const current = normalizeQuotation(quotation || {}, null);
+  const rows = [
+    ["Base fare", current.baseFare],
+    ["Driver allowance", current.driverAllowance],
+    ["Night allowance", current.nightAllowance],
+    ["Toll", current.toll],
+    ["Parking", current.parking],
+    ["State permit", current.statePermit],
+    ["Waiting charge", current.waitingCharge],
+    ["Discount", current.discount ? -Math.abs(current.discount) : 0]
+  ]
+    .map(([label, amount]) => ({ label, amount: parseMoney(amount) }))
+    .filter((item) => item.amount !== 0);
+  if (rows.length) return rows;
+  return Array.isArray(fallbackItems) ? fallbackItems : [];
+}
+
+function quotationChanged(previous, next) {
+  const before = normalizeQuotation(previous || {}, null);
+  const after = normalizeQuotation(next || {}, null);
+  return QUOTATION_FIELDS.some(([field]) => String(before[field] || "") !== String(after[field] || ""));
+}
+
+function quotationHistoryForBooking(store, bookingId) {
+  return (store.quotationHistory || [])
+    .filter((item) => item.bookingId === bookingId)
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+}
+
+function recordQuotationHistory(store, booking, previous, next, meta = {}) {
+  store.quotationHistory = Array.isArray(store.quotationHistory) ? store.quotationHistory : [];
+  const before = normalizeQuotation(previous || {}, null);
+  const after = normalizeQuotation(next || {}, null);
+  const changes = QUOTATION_FIELDS.map(([field, label]) => ({
+    field,
+    label,
+    from: before[field],
+    to: after[field]
+  })).filter((change) => String(change.from || "") !== String(change.to || ""));
+  if (!changes.length) return null;
+  const entry = {
+    id: id("QTH"),
+    bookingId: booking.id,
+    at: now(),
+    by: meta.by || "admin",
+    source: meta.source || "admin_quotation_update",
+    reason: String(meta.reason || "").trim(),
+    oldValues: before,
+    newValues: after,
+    changes
+  };
+  store.quotationHistory.push(entry);
+  return entry;
+}
+
 function recordBookingStatusHistory(store, booking, before, meta = {}) {
   store.bookingStatusHistory = Array.isArray(store.bookingStatusHistory) ? store.bookingStatusHistory : [];
   const previous = before || {};
@@ -460,7 +606,7 @@ function recordBookingStatusHistory(store, booking, before, meta = {}) {
     ["paymentStatus", "Payment status"],
     ["assignedDriverId", "Driver assignment"],
     ["assignedCarId", "Car assignment"],
-    ["amount", "Confirmed amount"]
+    ["amount", "Quotation total"]
   ].forEach(([field, label]) => {
     const fromValue = previous[field] === undefined || previous[field] === null ? "" : String(previous[field]);
     const toValue = booking[field] === undefined || booking[field] === null ? "" : String(booking[field]);
@@ -500,15 +646,19 @@ function normalizeStore(store) {
   store.customers = Array.isArray(store.customers) ? store.customers : [];
   store.bookings = Array.isArray(store.bookings) ? store.bookings : [];
   store.bookingStatusHistory = Array.isArray(store.bookingStatusHistory) ? store.bookingStatusHistory : [];
+  store.quotationHistory = Array.isArray(store.quotationHistory) ? store.quotationHistory : [];
   store.bookings.forEach((booking) => {
     booking.status = normalizeBookingStatus(booking.status);
     booking.paymentStatus = normalizePaymentStatus(booking.paymentStatus);
     booking.history = Array.isArray(booking.history) ? booking.history : [];
+    booking.quotation = normalizeQuotation(booking.quotation, booking);
+    booking.amount = parseMoney(booking.quotation.totalAmount || booking.amount);
+    booking.costItems = quotationCostItems(booking.quotation, booking.costItems);
   });
   store.popupSettings = {
     enabled: false,
     title: "Plan your next trip with VRK",
-    message: "Send a booking request and owner will confirm the final fare.",
+    message: "Send a booking request and owner will share a quotation.",
     buttonLabel: "Book now",
     showOnEveryVisit: false,
     image: "",
@@ -540,6 +690,7 @@ function adminData(store) {
     drivers: store.drivers,
     bookings: store.bookings.map((booking) => bookingSummary(store, booking)),
     bookingStatusHistory: store.bookingStatusHistory,
+    quotationHistory: store.quotationHistory,
     banners: store.banners,
     gallery: store.gallery,
     popupSettings: store.popupSettings
@@ -702,7 +853,29 @@ function verifyBookingTrackingAccess(booking, payload) {
 function quotationStatus(booking) {
   const status = normalizeBookingStatus(booking.status);
   if (["cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(status)) return status;
-  if (parseMoney(booking.amount) > 0) return "quotation_ready";
+  const quotation = normalizeQuotation(booking.quotation, booking);
+  if (quotation.totalAmount > 0 && quotation.expiryDate && quotation.expiryDate < businessTodayDate()) return "quotation_expired";
+  if (
+    [
+      "quotation_accepted",
+      "advance_pending",
+      "advance_paid",
+      "booking_confirmed",
+      "driver_assigned",
+      "driver_accepted",
+      "driver_arriving",
+      "driver_reached",
+      "trip_started",
+      "on_trip",
+      "trip_completed",
+      "balance_pending",
+      "fully_paid",
+      "closed"
+    ].includes(status)
+  ) {
+    return "quotation_accepted";
+  }
+  if (quotation.totalAmount > 0) return "quotation_ready";
   if (["request_submitted", "under_review"].includes(status)) return "waiting_for_owner";
   return "quotation_pending";
 }
@@ -741,6 +914,7 @@ function customerTrackingSummary(store, booking) {
     paymentStatus: summary.paymentStatus,
     tripStatus: summary.status,
     amount: summary.amount,
+    quotation: summary.quotation,
     paidAmount: summary.paidAmount,
     balanceAmount: summary.balanceAmount,
     confirmationMessage: summary.confirmationMessage,
@@ -828,7 +1002,7 @@ function parseCostItems(value, fallbackAmount) {
     .filter(Boolean);
 
   if (!items.length && parseMoney(fallbackAmount) > 0) {
-    return [{ label: "Confirmed fare", amount: parseMoney(fallbackAmount) }];
+    return [{ label: "Quotation total", amount: parseMoney(fallbackAmount) }];
   }
   return items;
 }
@@ -1052,6 +1226,7 @@ function createBooking(store, payload) {
     message: String(payload.message || "").trim(),
     estimatedAmount: parseMoney(payload.amount),
     amount: 0,
+    quotation: emptyQuotation(),
     costItems: [],
     includedItems: defaultInclusions(item, bookingType),
     excludedItems: [],
@@ -1093,14 +1268,22 @@ function bookingSummary(store, booking) {
   const { trackingCodeHash, ...safeBooking } = booking;
   const car = store.cars.find((item) => item.id === booking.assignedCarId);
   const driver = store.drivers.find((item) => item.id === booking.assignedDriverId);
-  const paidAmount = parseMoney(booking.payment && booking.payment.paidAmount);
-  const amount = parseMoney(booking.amount);
+  const quotation = normalizeQuotation(booking.quotation, booking);
+  const amount = parseMoney(quotation.totalAmount || booking.amount);
+  const quotedAdvance = parseMoney(quotation.advancePaid);
+  const submittedPayment = parseMoney(booking.payment && booking.payment.paidAmount);
+  const paidAmount = Math.max(quotedAdvance, submittedPayment);
+  const costItems = quotationCostItems(quotation, booking.costItems);
   return {
     ...safeBooking,
+    quotation,
+    quotationHistory: quotationHistoryForBooking(store, booking.id),
     car,
     driver,
     statusHistory: statusHistoryForBooking(store, booking.id),
     paidAmount,
+    amount,
+    costItems,
     balanceAmount: Math.max(amount - paidAmount, 0)
   };
 }
@@ -1367,7 +1550,7 @@ async function handleApi(req, res) {
       return sendError(res, error.status || 403, error.message || "Secure tracking verification failed.");
     }
     if (parseMoney(booking.amount) <= 0 || booking.paymentStatus === "waiting_for_amount") {
-      return sendError(res, 422, "Owner has not confirmed the payable amount yet");
+      return sendError(res, 422, "Owner has not shared the quotation yet");
     }
     requireFields(body, ["payerName", "paymentMethod"]);
     const before = { ...booking };
@@ -1656,13 +1839,28 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const booking = store.bookings.find((item) => item.id === assignMatch[1]);
     if (!booking) return sendError(res, 404, "Booking not found");
+    const adminName = req.admin && req.admin.name ? req.admin.name : "admin";
     const before = { ...booking };
-    const costItems = parseCostItems(body.costItems, body.amount || booking.amount);
-    const calculatedAmount = costItems.length ? totalCost(costItems) : parseMoney(body.amount || booking.amount);
+    const previousQuotation = normalizeQuotation(booking.quotation, booking);
+    const nextQuotation = quotationFromBody(body, previousQuotation, adminName);
+    const quoteChanged = quotationChanged(previousQuotation, nextQuotation);
+    const quotationReason = String(body.quotationChangeReason || "").trim();
+    if (quoteChanged && (previousQuotation.totalAmount || previousQuotation.updatedAt) && !quotationReason) {
+      return sendError(res, 422, "Enter a reason for changing the saved quotation.");
+    }
+    if (quoteChanged) {
+      booking.quotation = nextQuotation;
+      recordQuotationHistory(store, booking, previousQuotation, nextQuotation, {
+        by: adminName,
+        source: "admin_quotation_update",
+        reason: quotationReason || "Initial quotation created"
+      });
+    }
+    const calculatedAmount = parseMoney(booking.quotation.totalAmount);
     booking.assignedDriverId = body.assignedDriverId || "";
     booking.assignedCarId = body.assignedCarId || booking.assignedCarId || "";
     booking.amount = calculatedAmount;
-    booking.costItems = costItems;
+    booking.costItems = quotationCostItems(booking.quotation, booking.costItems);
     if (Object.prototype.hasOwnProperty.call(body, "includedItems")) {
       booking.includedItems = normalizeArrayText(body.includedItems);
     }
@@ -1683,9 +1881,11 @@ async function handleApi(req, res) {
     booking.notes = String(body.notes || booking.notes || "");
     booking.updatedAt = now();
     recordBookingStatusHistory(store, booking, before, {
-      by: req.admin && req.admin.name ? req.admin.name : "admin",
+      by: adminName,
       source: "admin_booking_update",
-      note: `Owner updated booking lifecycle and amount ${calculatedAmount}`
+      note: quoteChanged
+        ? `Owner updated quotation and booking lifecycle. Reason: ${quotationReason || "Initial quotation created"}`
+        : `Owner updated booking lifecycle and amount ${calculatedAmount}`
     });
     await saveStore(store);
     sendJson(res, 200, { booking: bookingSummary(store, booking) });

@@ -644,7 +644,7 @@
 
           <label class="switch-row terms-check full">
             <input name="termsAccepted" type="checkbox" required>
-            I accept that VRK owner will confirm vehicle, driver, route, final fare, and payment details before travel.
+            I accept that VRK owner will confirm vehicle, driver, route, quotation, and payment details before travel.
           </label>
         </div>
       </div>
@@ -1305,7 +1305,7 @@
     infoEyebrow.textContent = detailForItem(service);
     infoTitle.textContent = titleForItem(service);
     infoSubtitle.textContent =
-      service.description || service.overview || "Owner will confirm exact fare, vehicle, driver, and payment before trip.";
+      service.description || service.overview || "Owner will share exact quotation, vehicle, driver, and payment before trip.";
     infoBody.innerHTML = `
       <div class="info-price">
         <span>Starting price</span>
@@ -1358,7 +1358,7 @@
         </div>
         <div>
           <h3>Bookings</h3>
-          <p>Owner confirms final fare before payment.</p>
+          <p>Owner shares a quotation before payment.</p>
           <p>Booking ID and printable bill are generated after request.</p>
         </div>
         <div>
@@ -1544,7 +1544,7 @@
     if (!popup.showOnEveryVisit && sessionStorage.getItem("vrkPopupClosed")) return;
     state.popupShown = true;
     document.querySelector("#modalTitle").textContent = popup.title || "Send booking request";
-    document.querySelector("#modalMessage").textContent = popup.message || "Owner will confirm the exact fare.";
+    document.querySelector("#modalMessage").textContent = popup.message || "Owner will share the exact quotation.";
     modalBookingForm.querySelector("button[type='submit']").textContent = popup.buttonLabel || "Send booking request";
     openBookingModal();
   }
@@ -1950,6 +1950,37 @@
   });
 
   function fareBreakup(booking) {
+    if (booking.quotation && Number(booking.quotation.totalAmount || 0)) {
+      const quote = booking.quotation;
+      const details = [
+        ["Base fare", quote.baseFare ? VRK.money(quote.baseFare) : ""],
+        ["Included km", quote.includedKm ? `${quote.includedKm} km` : ""],
+        ["Extra KM rate", quote.extraKmRate ? `${VRK.money(quote.extraKmRate)}/km` : ""],
+        ["Included hrs", quote.includedHours ? `${quote.includedHours} hrs` : ""],
+        ["Extra hr rate", quote.extraHourRate ? `${VRK.money(quote.extraHourRate)}/hr` : ""],
+        ["Driver allowance", quote.driverAllowance ? VRK.money(quote.driverAllowance) : ""],
+        ["Night allowance", quote.nightAllowance ? VRK.money(quote.nightAllowance) : ""],
+        ["Toll", quote.toll ? VRK.money(quote.toll) : ""],
+        ["Parking", quote.parking ? VRK.money(quote.parking) : ""],
+        ["State permit", quote.statePermit ? VRK.money(quote.statePermit) : ""],
+        ["Waiting charge", quote.waitingCharge ? VRK.money(quote.waitingCharge) : ""],
+        ["Discount", quote.discount ? VRK.money(quote.discount) : ""],
+        ["Advance paid", quote.advancePaid ? VRK.money(quote.advancePaid) : ""],
+        ["Quotation expiry", quote.expiryDate ? VRK.dateLabel(quote.expiryDate) : ""],
+        ["Admin remarks", quote.adminRemarks || ""]
+      ].filter(([, value]) => value);
+      return `
+        <div class="quotation-summary">
+          <div>
+            <b>Owner quotation</b>
+            <small>Total ${VRK.money(quote.totalAmount)}${booking.balanceAmount ? ` | Balance ${VRK.money(booking.balanceAmount)}` : ""}</small>
+          </div>
+          <div class="quotation-grid">
+            ${details.map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`).join("")}
+          </div>
+        </div>
+      `;
+    }
     if (!booking.costItems || !booking.costItems.length) return "";
     return `
       <div class="fare-box">
@@ -1992,6 +2023,8 @@
       waiting_for_owner: "Waiting for owner quotation",
       quotation_pending: "Quotation pending",
       quotation_ready: "Quotation ready",
+      quotation_accepted: "Quotation accepted",
+      quotation_expired: "Quotation expired",
       rejected: "Rejected",
       cancelled_by_customer: "Cancelled by customer",
       cancelled_by_admin: "Cancelled by admin"
@@ -2027,7 +2060,9 @@
       ["Travel date", VRK.dateLabel(booking.travelDate)],
       ["Pickup time", booking.pickupTime || "Not added"],
       ["Passengers", booking.passengers],
-      ["Amount", booking.amount ? VRK.money(booking.amount) : "Owner quotation pending"],
+      ["Quotation total", booking.amount ? VRK.money(booking.amount) : "Owner quotation pending"],
+      ["Advance", booking.quotation && booking.quotation.advancePaid ? VRK.money(booking.quotation.advancePaid) : "Not requested"],
+      ["Balance", booking.balanceAmount ? VRK.money(booking.balanceAmount) : "No balance"],
       ["Assigned car", booking.car ? [booking.car.name, booking.car.seats].filter(Boolean).join(" | ") : "Visible after confirmation"],
       ["Assigned driver", booking.driver ? [booking.driver.name, booking.driver.phone].filter(Boolean).join(" | ") : "Visible after confirmation"]
     ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
@@ -2065,6 +2100,14 @@
     `;
   }
 
+  function suggestedPaymentAmount(booking) {
+    if (booking.paymentStatus === "advance_pending" && booking.quotation && Number(booking.quotation.advancePaid || 0)) {
+      return booking.quotation.advancePaid;
+    }
+    if (booking.paymentStatus === "balance_pending" && Number(booking.balanceAmount || 0)) return booking.balanceAmount;
+    return booking.amount;
+  }
+
   function paymentForm(booking) {
     if (booking.paymentStatus === "payment_submitted") {
       return `<p class="note-line">Payment details submitted. Owner will verify and update the bill.</p>`;
@@ -2089,7 +2132,7 @@
         </label>
         <label>
           Paid amount
-          <input name="paidAmount" type="number" min="1" value="${VRK.escapeHtml(booking.amount)}" required>
+          <input name="paidAmount" type="number" min="1" value="${VRK.escapeHtml(suggestedPaymentAmount(booking))}" required>
         </label>
         <label>
           Payment method
@@ -2128,7 +2171,7 @@
         <small>Booking ID: ${VRK.escapeHtml(booking.id)}</small>
         ${booking.trackingCode ? `<p class="secure-code-box"><b>Tracking code</b><span>${VRK.escapeHtml(booking.trackingCode)}</span><small>Keep this code with your booking ID and mobile number.</small></p>` : ""}
         <small>${VRK.dateLabel(booking.travelDate)} | ${
-      booking.amount ? VRK.money(booking.amount) : "Owner amount pending"
+      booking.amount ? VRK.money(booking.amount) : "Owner quotation pending"
     }</small>
         ${trackingDetailGrid(booking)}
         ${booking.confirmationMessage ? `<p>${VRK.escapeHtml(booking.confirmationMessage)}</p>` : ""}

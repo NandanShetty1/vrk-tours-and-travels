@@ -62,6 +62,9 @@
     refund_pending: "Refund pending",
     refunded: "Refunded",
     waiting_for_amount: "Quotation pending",
+    quotation_expired: "Quotation expired",
+    quotation_ready: "Quotation ready",
+    waiting_for_owner: "Waiting for owner quotation",
     payment_submitted: "Payment submitted",
     not_required: "Not required",
     pending_owner_confirmation: "Request Submitted",
@@ -80,10 +83,24 @@
 
   function statusClass(value) {
     const status = String(value || "pending");
-    if (["trip_completed", "fully_paid", "closed", "advance_paid", "refunded", "completed", "paid", "payment_verified"].includes(status)) {
+    if (
+      [
+        "trip_completed",
+        "fully_paid",
+        "closed",
+        "advance_paid",
+        "refunded",
+        "quotation_accepted",
+        "completed",
+        "paid",
+        "payment_verified"
+      ].includes(status)
+    ) {
       return "good";
     }
-    if (["rejected", "cancelled_by_customer", "cancelled_by_admin", "refund_pending", "cancelled"].includes(status)) return "danger";
+    if (["rejected", "cancelled_by_customer", "cancelled_by_admin", "refund_pending", "quotation_expired", "cancelled"].includes(status)) {
+      return "danger";
+    }
     if (
       [
         "booking_confirmed",
@@ -93,6 +110,7 @@
         "driver_reached",
         "trip_started",
         "on_trip",
+        "quotation_ready",
         "payment_submitted",
         "assigned"
       ].includes(status)

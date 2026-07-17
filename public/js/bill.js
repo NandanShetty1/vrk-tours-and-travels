@@ -7,7 +7,7 @@
 
   function rows(items, amount) {
     if (!items || !items.length) {
-      return `<tr><td>Owner confirmed fare</td><td>${VRK.money(amount)}</td></tr>`;
+      return `<tr><td>Owner quotation total</td><td>${VRK.money(amount)}</td></tr>`;
     }
     return items
       .map((item) => `<tr><td>${VRK.escapeHtml(item.label)}</td><td>${VRK.money(item.amount)}</td></tr>`)
@@ -63,6 +63,27 @@
 
   function detailList(details) {
     return details.map(([label, value]) => `<p><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</p>`).join("");
+  }
+
+  function quotationDetails(booking) {
+    const quote = booking.quotation || {};
+    return [
+      ["Base fare", quote.baseFare ? VRK.money(quote.baseFare) : ""],
+      ["Included km", quote.includedKm ? `${quote.includedKm} km` : ""],
+      ["Extra KM rate", quote.extraKmRate ? `${VRK.money(quote.extraKmRate)}/km` : ""],
+      ["Included hrs", quote.includedHours ? `${quote.includedHours} hrs` : ""],
+      ["Extra hr rate", quote.extraHourRate ? `${VRK.money(quote.extraHourRate)}/hr` : ""],
+      ["Driver allowance", quote.driverAllowance ? VRK.money(quote.driverAllowance) : ""],
+      ["Night allowance", quote.nightAllowance ? VRK.money(quote.nightAllowance) : ""],
+      ["Toll", quote.toll ? VRK.money(quote.toll) : ""],
+      ["Parking", quote.parking ? VRK.money(quote.parking) : ""],
+      ["State permit", quote.statePermit ? VRK.money(quote.statePermit) : ""],
+      ["Waiting charge", quote.waitingCharge ? VRK.money(quote.waitingCharge) : ""],
+      ["Discount", quote.discount ? VRK.money(quote.discount) : ""],
+      ["Advance paid", quote.advancePaid ? VRK.money(quote.advancePaid) : ""],
+      ["Quotation expiry", quote.expiryDate ? VRK.dateLabel(quote.expiryDate) : ""],
+      ["Admin remarks", quote.adminRemarks || ""]
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
   }
 
   function render(data) {
@@ -131,7 +152,7 @@
         </section>
 
         <section class="fare-table-wrap">
-          <h2>Fare Breakup</h2>
+          <h2>Quotation Breakup</h2>
           <table class="fare-table">
             <tbody>
               ${rows(booking.costItems, booking.amount)}
@@ -142,6 +163,19 @@
               <tr><th>Balance</th><th>${VRK.money(booking.balanceAmount)}</th></tr>
             </tfoot>
           </table>
+        </section>
+
+        <section class="ticket-grid two">
+          <article>
+            <h2>Quotation Details</h2>
+            ${detailList(quotationDetails(booking))}
+          </article>
+          <article>
+            <h2>Quotation Summary</h2>
+            <p><b>Total amount</b>${VRK.money(booking.amount)}</p>
+            <p><b>Advance paid</b>${VRK.money(booking.quotation ? booking.quotation.advancePaid : booking.paidAmount)}</p>
+            <p><b>Balance</b>${VRK.money(booking.balanceAmount)}</p>
+          </article>
         </section>
 
         <section class="ticket-grid two">

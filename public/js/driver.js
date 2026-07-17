@@ -76,6 +76,7 @@
   }
 
   function driverTripDetails(booking) {
+    const quote = booking.quotation || {};
     return [
       ["Trip type", tripTypeLabel(booking)],
       ["Pickup time", booking.pickupTime],
@@ -91,7 +92,16 @@
       ["Terminal", booking.terminal],
       ["Flight time", booking.flightTime],
       ["Custom route", listText(booking.customDestinations)],
-      ["Special requirements", booking.specialRequirements]
+      ["Special requirements", booking.specialRequirements],
+      ["Quotation total", quote.totalAmount ? VRK.money(quote.totalAmount) : ""],
+      ["Included km", quote.includedKm ? `${quote.includedKm} km` : ""],
+      ["Extra KM rate", quote.extraKmRate ? `${VRK.money(quote.extraKmRate)}/km` : ""],
+      ["Included hrs", quote.includedHours ? `${quote.includedHours} hrs` : ""],
+      ["Extra hr rate", quote.extraHourRate ? `${VRK.money(quote.extraHourRate)}/hr` : ""],
+      ["Driver allowance", quote.driverAllowance ? VRK.money(quote.driverAllowance) : ""],
+      ["Night allowance", quote.nightAllowance ? VRK.money(quote.nightAllowance) : ""],
+      ["Toll / parking / permit", [quote.toll, quote.parking, quote.statePermit].some(Number) ? VRK.money(Number(quote.toll || 0) + Number(quote.parking || 0) + Number(quote.statePermit || 0)) : ""],
+      ["Admin remarks", quote.adminRemarks]
     ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
   }
 

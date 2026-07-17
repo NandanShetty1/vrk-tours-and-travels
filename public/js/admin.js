@@ -347,6 +347,26 @@
     `;
   }
 
+  function quotationHistoryTimeline(booking) {
+    const history = Array.isArray(booking.quotationHistory) ? booking.quotationHistory.slice(-5).reverse() : [];
+    if (!history.length) {
+      return `<div class="status-history"><b>Quotation history</b><small>No quotation revisions recorded yet.</small></div>`;
+    }
+    return `
+      <div class="status-history">
+        <b>Quotation history</b>
+        ${history
+          .map((entry) => {
+            const changeCount = entry.changes ? entry.changes.length : 0;
+            return `<small>${VRK.dateTimeLabel(entry.at)} - ${VRK.escapeHtml(entry.by || "admin")}: ${VRK.escapeHtml(
+              entry.reason || "Quotation updated"
+            )} (${changeCount} field${changeCount === 1 ? "" : "s"})</small>`;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
   function options(items, selectedId, labelField) {
     return [
       `<option value="">Not assigned</option>`,
@@ -365,12 +385,105 @@
     return (booking.costItems || []).map((item) => `${item.label} = ${item.amount}`).join("\n");
   }
 
+  const quotationFields = [
+    ["baseFare", "Base fare", "number"],
+    ["includedKm", "Included km", "number"],
+    ["extraKmRate", "Extra KM rate", "number"],
+    ["includedHours", "Included hrs", "number"],
+    ["extraHourRate", "Extra hr rate", "number"],
+    ["driverAllowance", "Driver allowance", "number"],
+    ["nightAllowance", "Night allowance", "number"],
+    ["toll", "Toll", "number"],
+    ["parking", "Parking", "number"],
+    ["statePermit", "State permit", "number"],
+    ["waitingCharge", "Waiting charge", "number"],
+    ["discount", "Discount", "number"],
+    ["advancePaid", "Advance paid", "number"],
+    ["totalAmount", "Total amount", "number"],
+    ["expiryDate", "Quotation expiry", "date"]
+  ];
+
+  function quoteValue(booking, field) {
+    return booking.quotation && booking.quotation[field] !== undefined ? booking.quotation[field] : "";
+  }
+
+  function moneyOrDash(value) {
+    return Number(value || 0) ? VRK.money(value) : "Not added";
+  }
+
+  function quotationSummary(booking) {
+    const quote = booking.quotation || {};
+    const details = [
+      ["Base fare", moneyOrDash(quote.baseFare)],
+      ["Included km", quote.includedKm ? `${quote.includedKm} km` : "Not added"],
+      ["Extra KM rate", moneyOrDash(quote.extraKmRate)],
+      ["Included hrs", quote.includedHours ? `${quote.includedHours} hrs` : "Not added"],
+      ["Extra hr rate", moneyOrDash(quote.extraHourRate)],
+      ["Driver allowance", moneyOrDash(quote.driverAllowance)],
+      ["Night allowance", moneyOrDash(quote.nightAllowance)],
+      ["Toll", moneyOrDash(quote.toll)],
+      ["Parking", moneyOrDash(quote.parking)],
+      ["State permit", moneyOrDash(quote.statePermit)],
+      ["Waiting charge", moneyOrDash(quote.waitingCharge)],
+      ["Discount", moneyOrDash(quote.discount)],
+      ["Advance paid", moneyOrDash(quote.advancePaid)],
+      ["Total amount", moneyOrDash(quote.totalAmount || booking.amount)],
+      ["Balance", moneyOrDash(booking.balanceAmount)],
+      ["Expiry", quote.expiryDate ? VRK.dateLabel(quote.expiryDate) : "Not set"]
+    ];
+    return `
+      <div class="quotation-summary">
+        <div>
+          <b>Quotation</b>
+          <small>${quote.adminRemarks ? VRK.escapeHtml(quote.adminRemarks) : "Structured owner quotation for this booking."}</small>
+        </div>
+        <div class="quotation-grid">
+          ${details.map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function quotationEditor(booking) {
+    return `
+      <div class="quotation-editor full">
+        <div>
+          <b>Quotation management</b>
+          <small>Enter fare details before requesting advance. Add a reason when changing an existing quotation.</small>
+        </div>
+        <div class="quotation-grid editor-grid">
+          ${quotationFields
+            .map(([field, label, type]) => {
+              const name = `quotation${field[0].toUpperCase()}${field.slice(1)}`;
+              return `
+                <label>
+                  ${label}
+                  <input name="${name}" type="${type}" ${type === "number" ? 'min="0"' : ""} value="${VRK.escapeHtml(
+                quoteValue(booking, field)
+              )}">
+                </label>
+              `;
+            })
+            .join("")}
+        </div>
+        <label class="full">
+          Admin remarks
+          <textarea name="quotationAdminRemarks" rows="2">${VRK.escapeHtml(quoteValue(booking, "adminRemarks"))}</textarea>
+        </label>
+        <label class="full">
+          Reason for quotation change
+          <textarea name="quotationChangeReason" rows="2" placeholder="Required when changing an already saved quotation"></textarea>
+        </label>
+      </div>
+    `;
+  }
+
   const bookingCheckItems = [
     ["customerContacted", "Customer contacted"],
     ["routeVerified", "Pickup/drop verified"],
     ["scheduleConfirmed", "Date and time confirmed"],
     ["vehicleChecked", "Vehicle availability checked"],
-    ["fareShared", "Final fare shared"],
+    ["fareShared", "Quotation shared"],
     ["paymentChecked", "Payment proof checked"],
     ["driverInformed", "Driver informed"],
     ["tripCompleted", "Trip completed"]
@@ -402,8 +515,8 @@
     if (!checks.customerContacted) return "Call or WhatsApp customer and confirm request";
     if (!checks.routeVerified || !checks.scheduleConfirmed) return "Verify route, date, time, passengers, and luggage";
     if (!checks.vehicleChecked || !booking.assignedCarId) return "Check car availability and assign vehicle";
-    if (!booking.amount || booking.paymentStatus === "waiting_for_amount") return "Prepare final fare breakup and share amount";
-    if (!checks.fareShared) return "Mark fare shared after customer confirmation";
+    if (!booking.amount || booking.paymentStatus === "waiting_for_amount") return "Prepare quotation and share amount";
+    if (!checks.fareShared) return "Mark quotation shared after customer confirmation";
     if (booking.paymentStatus === "payment_submitted" && !checks.paymentChecked) return "Verify payment proof and transaction ID";
     if (!booking.assignedDriverId || !checks.driverInformed) return "Assign/inform driver and share trip details";
     if (["driver_assigned", "driver_accepted", "driver_arriving", "driver_reached", "trip_started"].includes(booking.status)) {
@@ -497,7 +610,7 @@
       booking.passengers
     )} passengers</p>
           </div>
-          <strong>${booking.amount ? VRK.money(booking.amount) : "Amount not set"}</strong>
+          <strong>${booking.amount ? VRK.money(booking.amount) : "Quotation not set"}</strong>
         </div>
         <div class="booking-ops">
           <div>
@@ -524,7 +637,9 @@
         </div>
         ${contactLinks(booking)}
         ${booking.message ? `<p class="note-line">${VRK.escapeHtml(booking.message)}</p>` : ""}
+        ${quotationSummary(booking)}
         ${statusHistoryTimeline(booking)}
+        ${quotationHistoryTimeline(booking)}
         ${
           payment
             ? `<p class="note-line">Payment submitted by ${VRK.escapeHtml(payment.payerName)} using ${VRK.escapeHtml(
@@ -543,10 +658,6 @@
           <label>
             Car
             <select name="assignedCarId">${options(state.data.cars, booking.assignedCarId, "name")}</select>
-          </label>
-          <label>
-            Final amount fallback
-            <input name="amount" type="number" min="0" value="${VRK.escapeHtml(booking.amount)}">
           </label>
           <label>
             Status
@@ -574,10 +685,7 @@
                 .join("")}
             </select>
           </label>
-          <label class="full">
-            Fare breakup, one line as Label = Amount
-            <textarea name="costItems" rows="4">${VRK.escapeHtml(costItemsText(booking))}</textarea>
-          </label>
+          ${quotationEditor(booking)}
           <label class="full">
             Package includes, one per line
             <textarea name="includedItems" rows="3">${VRK.escapeHtml(VRK.linesToText(booking.includedItems))}</textarea>

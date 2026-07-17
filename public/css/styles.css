@@ -826,6 +826,60 @@ textarea.is-invalid {
   overflow-wrap: anywhere;
 }
 
+.quotation-summary,
+.quotation-editor {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quotation-summary > div:first-child,
+.quotation-editor > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.quotation-summary b,
+.quotation-editor b {
+  color: var(--ink);
+}
+
+.quotation-summary small,
+.quotation-editor small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.quotation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quotation-grid span,
+.quotation-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.quotation-grid span b {
+  display: block;
+}
+
+.editor-grid label {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .mini-list {
   display: grid;
   gap: 4px;
@@ -2245,6 +2299,7 @@ textarea.is-invalid {
   .contact-lines,
   .booking-detail-grid,
   .tracking-summary-grid,
+  .quotation-grid,
   .booking-ops,
   .checklist-grid,
   .car-rate-strip,
