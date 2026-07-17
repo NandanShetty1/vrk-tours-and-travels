@@ -98,7 +98,11 @@
 
         <header class="ticket-head">
           <div>
-            <span class="brand-mark">VRK</span>
+            <span class="brand-mark">${
+              business.logo
+                ? `<img class="brand-logo" src="${VRK.escapeHtml(business.logo)}" alt="${VRK.escapeHtml(business.name)} logo">`
+                : "VRK"
+            }</span>
             <h1>${VRK.escapeHtml(business.name)}</h1>
             <p>${VRK.escapeHtml(business.tagline || "Car booking and travel packages")}</p>
           </div>

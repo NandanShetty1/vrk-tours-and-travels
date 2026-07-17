@@ -132,17 +132,40 @@
   function contactLinks() {
     const business = (state.data && state.data.business) || {};
     const digits = contactPhoneDigits(business.phone);
+    const whatsappDigits = contactPhoneDigits(business.whatsapp || business.phone);
     const message = encodeURIComponent("Hi VRK Tours and Travels, I want to book a car or travel package.");
     return {
       phone: business.phone || "",
+      whatsappNumber: business.whatsapp || business.phone || "",
       email: business.email || "",
       address: business.address || "",
       call: digits ? `tel:+${digits}` : "#contactMap",
-      whatsapp: digits ? `https://wa.me/${digits}?text=${message}` : "#contactMap",
-      map: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        business.address || business.name || "VRK Tours and Travels Karnataka"
-      )}`
+      whatsapp: whatsappDigits ? `https://wa.me/${whatsappDigits}?text=${message}` : "#contactMap",
+      map:
+        business.googleMapsLink ||
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          business.address || business.name || "VRK Tours and Travels Karnataka"
+        )}`
     };
+  }
+
+  function updateBranding() {
+    const business = (state.data && state.data.business) || {};
+    document.querySelectorAll(".brand").forEach((brand) => {
+      const mark = brand.querySelector(".brand-mark");
+      const title = brand.querySelector("strong");
+      const subtitle = brand.querySelector("small");
+      if (mark) {
+        mark.innerHTML = business.logo
+          ? `<img class="brand-logo" src="${VRK.escapeHtml(business.logo)}" alt="${VRK.escapeHtml(
+              business.name || "VRK Tours and Travels"
+            )} logo">`
+          : "VRK";
+      }
+      if (title && title.textContent.includes("VRK Tours")) title.textContent = business.name || "VRK Tours and Travels";
+      if (subtitle && business.tagline) subtitle.textContent = business.tagline;
+    });
+    document.title = business.name ? `${business.name} - Book a Car or Tour` : document.title;
   }
 
   function updateContactSections() {
@@ -163,11 +186,20 @@
     document.querySelectorAll("[data-contact-phone]").forEach((node) => {
       node.textContent = links.phone || "Owner phone will appear here";
     });
+    document.querySelectorAll("[data-contact-whatsapp]").forEach((node) => {
+      node.textContent = links.whatsappNumber || "Owner WhatsApp will appear here";
+    });
     document.querySelectorAll("[data-contact-email]").forEach((node) => {
       node.textContent = links.email || "Owner email will appear here";
     });
     document.querySelectorAll("[data-contact-address]").forEach((node) => {
       node.textContent = links.address || "Owner address will appear here";
+    });
+    document.querySelectorAll("[data-contact-hours]").forEach((node) => {
+      node.textContent = business.workingHours || "Working hours will appear here";
+    });
+    document.querySelectorAll("[data-contact-emergency]").forEach((node) => {
+      node.textContent = business.emergencySupportNumber || "Emergency support will appear here";
     });
     document.querySelectorAll("[data-map-link]").forEach((link) => {
       link.href = links.map;
@@ -1122,6 +1154,18 @@
     return `background: linear-gradient(135deg, ${start}, ${end});`;
   }
 
+  function bannerImageStyle(banner) {
+    const desktop = banner.desktopImage || banner.image || "";
+    const mobile = banner.mobileImage || "";
+    if (!desktop) return styleForText(banner.prompt || banner.heading || banner.title);
+    return [
+      `--hero-desktop-image: url('${VRK.escapeHtml(desktop)}')`,
+      mobile ? `--hero-mobile-image: url('${VRK.escapeHtml(mobile)}')` : ""
+    ]
+      .filter(Boolean)
+      .join("; ");
+  }
+
   function renderHero() {
     const banners = state.data.banners || [];
     if (state.heroTimer) {
@@ -1131,20 +1175,22 @@
     const bannerSlides = banners
       .map(
         (banner) => `
-          <article class="hero-slide banner-click" data-banner-info="${VRK.escapeHtml(banner.id)}" tabindex="0" role="button" aria-label="Open details for ${VRK.escapeHtml(
-            banner.title
-          )}" style="${
-            banner.image
-              ? `background-image: linear-gradient(90deg, rgba(0,0,0,.72), rgba(0,0,0,.18)), url('${VRK.escapeHtml(
-                  banner.image
-                )}')`
-              : styleForText(banner.prompt || banner.title)
-          }">
+          <article class="hero-slide banner-click ${
+            banner.desktopImage || banner.image ? `hero-slide-image ${banner.mobileImage ? "has-mobile-image" : ""}` : ""
+          }" data-banner-info="${VRK.escapeHtml(banner.id)}" tabindex="0" role="button" aria-label="Open details for ${VRK.escapeHtml(
+            banner.heading || banner.title
+          )}" style="${bannerImageStyle(banner)}">
             <div>
               <span class="eyebrow">${VRK.escapeHtml(banner.offerLabel || banner.prompt || "Featured offer")}</span>
-              <h1>${VRK.escapeHtml(banner.title)}</h1>
-              <p>${VRK.escapeHtml(banner.subtitle || "Book now and owner will confirm the best travel plan.")}</p>
-              <span class="hero-hint">${VRK.escapeHtml(banner.ctaLabel || "View details")}</span>
+              <h1>${VRK.escapeHtml(banner.heading || banner.title)}</h1>
+              <p>${VRK.escapeHtml(banner.subheading || banner.subtitle || "Book now and owner will confirm the best travel plan.")}</p>
+              ${
+                banner.buttonLink
+                  ? `<a class="hero-hint" data-banner-link href="${VRK.escapeHtml(banner.buttonLink)}">${VRK.escapeHtml(
+                      banner.buttonText || banner.ctaLabel || "View details"
+                    )}</a>`
+                  : `<span class="hero-hint">${VRK.escapeHtml(banner.buttonText || banner.ctaLabel || "View details")}</span>`
+              }
             </div>
           </article>
         `
@@ -1285,13 +1331,20 @@
   function openBannerInfo(banner) {
     state.infoItem = null;
     infoEyebrow.textContent = banner.offerLabel || banner.prompt || "Travel advertisement";
-    infoTitle.textContent = banner.title || "Travel offer";
-    infoSubtitle.textContent = banner.subtitle || "";
+    infoTitle.textContent = banner.heading || banner.title || "Travel offer";
+    infoSubtitle.textContent = banner.subheading || banner.subtitle || "";
     const related = banner.targetId ? allItems().find((item) => item.id === banner.targetId) : null;
     infoBody.innerHTML = `
       ${banner.details ? `<div class="info-block"><p>${VRK.escapeHtml(banner.details)}</p></div>` : ""}
       ${banner.validUntil ? `<div class="info-price"><span>Valid until</span><strong>${VRK.dateLabel(banner.validUntil)}</strong></div>` : ""}
       ${related ? `<div class="info-price"><span>Related service</span><strong>${VRK.escapeHtml(titleForItem(related))}</strong></div>` : ""}
+      ${
+        banner.buttonLink
+          ? `<div class="info-price"><span>Action</span><a class="secondary" href="${VRK.escapeHtml(
+              banner.buttonLink
+            )}">${VRK.escapeHtml(banner.buttonText || banner.ctaLabel || "Open")}</a></div>`
+          : ""
+      }
       ${itemList("Offer terms", banner.terms)}
     `;
     infoBook.classList.add("hidden");
@@ -1343,28 +1396,55 @@
   function renderFooter() {
     if (!siteFooter) return;
     const business = state.data.business || {};
+    const links = contactLinks();
+    const socialLinks = (business.socialLinks || [])
+      .map((line) => {
+        const parts = String(line).split(/=| - | \| /);
+        const label = parts.length > 1 ? parts[0].trim() : "Social";
+        const url = (parts.length > 1 ? parts.slice(1).join("=").trim() : line.trim()) || "";
+        return /^https?:\/\//i.test(url) ? { label, url } : null;
+      })
+      .filter(Boolean);
     siteFooter.innerHTML = `
       <div class="footer-grid">
         <div>
-          <span class="brand-mark">VRK</span>
+          <span class="brand-mark">${
+            business.logo
+              ? `<img class="brand-logo" src="${VRK.escapeHtml(business.logo)}" alt="${VRK.escapeHtml(
+                  business.name || "VRK Tours and Travels"
+                )} logo">`
+              : "VRK"
+          }</span>
           <h2>${VRK.escapeHtml(business.name || "VRK Tours and Travels")}</h2>
-          <p>${VRK.escapeHtml(business.tagline || "Cars, tours, one way trips, and day packages.")}</p>
+          <p>${VRK.escapeHtml(
+            business.footerText || business.aboutText || business.tagline || "Cars, tours, one way trips, and day packages."
+          )}</p>
         </div>
         <div>
           <h3>Contact</h3>
-          ${business.phone ? `<p><b>Phone</b> ${VRK.escapeHtml(business.phone)}</p>` : ""}
+          ${business.phone ? `<p><b>Phone</b> <a href="${VRK.escapeHtml(links.call)}">${VRK.escapeHtml(business.phone)}</a></p>` : ""}
+          ${
+            business.whatsapp || business.phone
+              ? `<p><b>WhatsApp</b> <a href="${VRK.escapeHtml(links.whatsapp)}" target="_blank" rel="noopener">${VRK.escapeHtml(
+                  business.whatsapp || business.phone
+                )}</a></p>`
+              : ""
+          }
           ${business.email ? `<p><b>Email</b> ${VRK.escapeHtml(business.email)}</p>` : ""}
-          ${business.address ? `<p><b>Address</b> ${VRK.escapeHtml(business.address)}</p>` : ""}
+          ${business.emergencySupportNumber ? `<p><b>Emergency</b> ${VRK.escapeHtml(business.emergencySupportNumber)}</p>` : ""}
         </div>
         <div>
-          <h3>Bookings</h3>
+          <h3>Visit</h3>
+          ${business.address ? `<p><b>Address</b> ${VRK.escapeHtml(business.address)}</p>` : ""}
+          ${business.workingHours ? `<p><b>Hours</b> ${VRK.escapeHtml(business.workingHours)}</p>` : ""}
+          <p><a href="${VRK.escapeHtml(links.map)}" target="_blank" rel="noopener">Open Google Maps</a></p>
+        </div>
+        <div>
+          <h3>Bookings & Social</h3>
           <p>Owner shares a quotation before payment.</p>
           <p>Booking ID and printable bill are generated after request.</p>
-        </div>
-        <div>
-          <h3>Payment</h3>
           ${business.upiId ? `<p><b>UPI</b> ${VRK.escapeHtml(business.upiId)}</p>` : ""}
-          <p>${VRK.escapeHtml(business.gatewayNote || "Secure payment gateway can be connected with merchant keys.")}</p>
+          ${socialLinks.map((item) => `<p><a href="${VRK.escapeHtml(item.url)}" target="_blank" rel="noopener">${VRK.escapeHtml(item.label)}</a></p>`).join("")}
         </div>
       </div>
     `;
@@ -1460,18 +1540,15 @@
     const galleryCard = (item, isClone) => `
       <article class="gallery-card" ${isClone ? `aria-hidden="true"` : ""}>
         <div class="gallery-media">
-          ${
-            item.mediaType === "video"
-              ? `<video src="${VRK.escapeHtml(item.mediaUrl)}" ${
-                  item.thumbnail ? `poster="${VRK.escapeHtml(item.thumbnail)}"` : ""
-                } controls preload="metadata"></video>`
-              : `<img src="${VRK.escapeHtml(item.mediaUrl)}" alt="${VRK.escapeHtml(item.title)}" loading="lazy">`
-          }
+          <img src="${VRK.escapeHtml(item.image || item.mediaUrl)}" alt="${VRK.escapeHtml(
+            item.destination || item.title || "VRK travel gallery"
+          )}" loading="lazy">
         </div>
         <div>
-          <h3>${VRK.escapeHtml(item.title)}</h3>
+          <h3>${VRK.escapeHtml(item.destination || item.title || "VRK trip")}</h3>
           <p>${VRK.escapeHtml(item.caption || "")}</p>
-          <div class="tag-row">${(item.tags || [])
+          <div class="tag-row">${[item.destination, ...(item.tags || [])]
+            .filter(Boolean)
             .slice(0, 2)
             .map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`)
             .join("")}</div>
@@ -1531,6 +1608,13 @@
 
   function openBookingModal() {
     updateFormSelection(modalBookingForm);
+    modalClose.classList.remove("hidden");
+    bookingModal.dataset.allowClose = "true";
+    modalBookingForm.classList.remove("hidden");
+    const popupCta = bookingModal.querySelector("[data-popup-cta]");
+    if (popupCta) popupCta.remove();
+    const popupEyebrow = bookingModal.querySelector(".panel-heading .eyebrow");
+    if (popupEyebrow) popupEyebrow.textContent = "Quick booking";
     bookingModal.classList.remove("hidden");
   }
 
@@ -1538,19 +1622,57 @@
     bookingModal.classList.add("hidden");
   }
 
+  function popupTypeLabel(type) {
+    return {
+      seasonal_offer: "Seasonal offer",
+      important_travel_notice: "Important travel notice",
+      festival_discount: "Festival discount",
+      temporary_announcement: "Temporary announcement"
+    }[type] || "Announcement";
+  }
+
+  function isPopupActiveNow(popup) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (popup.startDate && popup.startDate > today) return false;
+    if (popup.endDate && popup.endDate < today) return false;
+    return true;
+  }
+
+  function popupStorageKey(popup) {
+    return `vrkPopupClosed:${popup.popupType || "popup"}:${popup.title || "notice"}:${popup.startDate || ""}:${popup.endDate || ""}`;
+  }
+
   function maybeShowPopup() {
     const popup = state.data.popupSettings || {};
-    if (!popup.enabled || state.popupShown) return;
-    if (!popup.showOnEveryVisit && sessionStorage.getItem("vrkPopupClosed")) return;
+    if (!popup.enabled || state.popupShown || !isPopupActiveNow(popup)) return;
+    const storageKey = popupStorageKey(popup);
+    if (popup.showOncePerDevice && localStorage.getItem(storageKey)) return;
     state.popupShown = true;
+    bookingModal.dataset.popupStorageKey = storageKey;
+    bookingModal.dataset.allowClose = popup.allowClose === false ? "false" : "true";
+    const popupEyebrow = bookingModal.querySelector(".panel-heading .eyebrow");
+    if (popupEyebrow) popupEyebrow.textContent = popupTypeLabel(popup.popupType);
     document.querySelector("#modalTitle").textContent = popup.title || "Send booking request";
     document.querySelector("#modalMessage").textContent = popup.message || "Owner will share the exact quotation.";
+    const heading = bookingModal.querySelector(".panel-heading");
+    const previousCta = bookingModal.querySelector("[data-popup-cta]");
+    if (previousCta) previousCta.remove();
+    const cta = document.createElement("a");
+    cta.className = "secondary popup-cta";
+    cta.dataset.popupCta = "true";
+    cta.href = popup.buttonLink || "#quickBooking";
+    cta.textContent = popup.buttonLabel || "Book now";
+    heading.appendChild(cta);
+    modalClose.classList.toggle("hidden", popup.allowClose === false);
+    modalBookingForm.classList.toggle("hidden", ["important_travel_notice", "temporary_announcement"].includes(popup.popupType));
     modalBookingForm.querySelector("button[type='submit']").textContent = popup.buttonLabel || "Send booking request";
-    openBookingModal();
+    updateFormSelection(modalBookingForm);
+    bookingModal.classList.remove("hidden");
   }
 
   async function load() {
     state.data = await VRK.request("/api/public-data");
+    updateBranding();
     renderHero();
     renderGallery();
     renderFooter();
@@ -1806,10 +1928,12 @@
     const detailsButton = event.target.closest("[data-details]");
     const bookButton = event.target.closest("[data-book]");
     const slideButton = event.target.closest("[data-slide]");
+    const bannerLink = event.target.closest("[data-banner-link]");
     const bannerInfo = event.target.closest("[data-banner-info]");
     const openButton = event.target.closest("[data-open-booking]");
     const providerButton = event.target.closest("[data-auth-provider]");
     const authAction = event.target.closest("[data-auth-action]");
+    const popupCta = event.target.closest("[data-popup-cta]");
     const customerLogout = event.target.closest("[data-customer-logout]");
     const customerDelete = event.target.closest("[data-customer-delete]");
 
@@ -1831,12 +1955,19 @@
       if (item) openServiceInfo(item);
     }
 
+    if (bannerLink) return;
+
     if (bannerInfo) {
       const banner = (state.data.banners || []).find((item) => item.id === bannerInfo.dataset.bannerInfo);
       if (banner) openBannerInfo(banner);
     }
 
     if (openButton) openBookingModal();
+
+    if (popupCta && bookingModal.dataset.popupStorageKey) {
+      localStorage.setItem(bookingModal.dataset.popupStorageKey, "yes");
+      if (popupCta.getAttribute("href") && popupCta.getAttribute("href").startsWith("#")) closeBookingModal();
+    }
 
     if (authAction) {
       continueCustomerAuth().catch((error) => setAuthMessage(friendlyAuthError(error, state.auth.method), "danger"));
@@ -1868,13 +1999,20 @@
   });
 
   modalClose.addEventListener("click", () => {
-    sessionStorage.setItem("vrkPopupClosed", "yes");
+    if (bookingModal.dataset.popupStorageKey) {
+      localStorage.setItem(bookingModal.dataset.popupStorageKey, "yes");
+      sessionStorage.setItem("vrkPopupClosed", "yes");
+    }
     closeBookingModal();
   });
 
   bookingModal.addEventListener("click", (event) => {
     if (event.target === bookingModal) {
-      sessionStorage.setItem("vrkPopupClosed", "yes");
+      if (bookingModal.dataset.allowClose === "false") return;
+      if (bookingModal.dataset.popupStorageKey) {
+        localStorage.setItem(bookingModal.dataset.popupStorageKey, "yes");
+        sessionStorage.setItem("vrkPopupClosed", "yes");
+      }
       closeBookingModal();
     }
   });

@@ -96,14 +96,22 @@ async function main() {
       body: JSON.stringify({ pin: "1234" })
     });
 
-    await request(base, "/api/admin/business", {
+    const businessResult = await request(base, "/api/admin/business", {
       method: "POST",
       headers: { "X-Admin-Pin": "1234" },
       body: JSON.stringify({
         name: "VRK Tours and Travels",
+        logo: "https://example.com/logo.png",
         phone: "+91 90000 00000",
+        whatsapp: "+91 90000 00001",
         email: "owner@vrktravels.local",
         address: "Owner office address",
+        googleMapsLink: "https://www.google.com/maps/search/?api=1&query=VRK",
+        workingHours: "Mon-Sun, 6 AM - 11 PM",
+        aboutText: "Owner managed tours and travels business.",
+        socialLinks: "Instagram = https://example.com/vrk\nFacebook = https://example.com/vrk-fb",
+        footerText: "Trusted car rentals and travel packages.",
+        emergencySupportNumber: "+91 90000 00999",
         upiId: "vrk@upi",
         paymentInstructions: "Pay only after owner shares the quotation.",
         invoicePrefix: "VRK",
@@ -208,6 +216,50 @@ async function main() {
         itinerary: "Morning pickup\nMysuru Palace visit\nEvening return",
         terms: "Final timings are owner confirmed.",
         active: true
+      })
+    });
+
+    const bannerResult = await request(base, "/api/admin/banners", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        heading: "Festival Mysuru travel offer",
+        subheading: "Owner curated one day package with comfortable cars.",
+        desktopImage: "https://example.com/banner-desktop.jpg",
+        mobileImage: "https://example.com/banner-mobile.jpg",
+        buttonText: "Plan this trip",
+        buttonLink: "#quickBooking",
+        sortOrder: 1,
+        active: true
+      })
+    });
+
+    const galleryResult = await request(base, "/api/admin/gallery", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        image: "https://example.com/gallery-mysuru.jpg",
+        caption: "Completed Mysuru family trip.",
+        destination: "Mysuru",
+        sortOrder: 1,
+        active: true
+      })
+    });
+
+    const popupResult = await request(base, "/api/admin/popup", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        enabled: true,
+        popupType: "festival_discount",
+        title: "Festival booking window open",
+        message: "Ask owner for festival package availability.",
+        buttonLabel: "Check packages",
+        buttonLink: "#oneDayPackages",
+        startDate: futureDate(-1),
+        endDate: futureDate(10),
+        allowClose: true,
+        showOncePerDevice: true
       })
     });
 
@@ -656,6 +708,21 @@ async function main() {
           pageStatuses,
           initialPublicCars: publicEmpty.cars.length,
           publicCarsAfterOwnerSetup: publicAfterSetup.cars.length,
+          businessLogoSaved: businessResult.business.logo === "https://example.com/logo.png",
+          businessWhatsappSaved: businessResult.business.whatsapp === "+91 90000 00001",
+          businessMapsSaved: businessResult.business.googleMapsLink.includes("google.com"),
+          publicBannerDynamic: publicAfterSetup.banners.some(
+            (item) =>
+              item.id === bannerResult.item.id &&
+              item.desktopImage &&
+              item.mobileImage &&
+              item.heading === "Festival Mysuru travel offer" &&
+              item.buttonText === "Plan this trip"
+          ),
+          publicGalleryDynamic: publicAfterSetup.gallery.some(
+            (item) => item.id === galleryResult.item.id && item.image && item.destination === "Mysuru" && item.sortOrder === 1
+          ),
+          popupDynamic: popupResult.popupSettings.popupType === "festival_discount" && popupResult.popupSettings.showOncePerDevice === true,
           publicTourPackagesAfterOwnerSetup: publicAfterSetup.tourPackages.length,
           tourPackageHiddenPublicly: publicAfterTourArchive.tourPackages.length === 0,
           publicDayPackagesAfterOwnerSetup: publicAfterSetup.dayPackages.length,

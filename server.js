@@ -634,15 +634,101 @@ function recordBookingStatusHistory(store, booking, before, meta = {}) {
   return entry;
 }
 
-function normalizeStore(store) {
-  store.business = {
+function normalizeBusinessSettings(business) {
+  const current = business || {};
+  return {
+    logo: "",
+    whatsapp: "",
+    googleMapsLink: "",
+    workingHours: "",
+    aboutText: "",
+    socialLinks: [],
+    footerText: "",
+    emergencySupportNumber: "",
     qrImage: "",
     gatewayNote: "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
     authNote: "Customer login uses Firebase Phone OTP, email link, and Google sign-in after production keys are configured.",
-    ...store.business
+    ...current,
+    socialLinks: normalizeArrayText(current.socialLinks),
+    terms: normalizeArrayText(current.terms)
   };
+}
+
+function normalizeBannerItem(item) {
+  const source = item || {};
+  const heading = String(source.heading || source.title || "").trim();
+  const subheading = String(source.subheading || source.subtitle || "").trim();
+  const desktopImage = String(source.desktopImage || source.image || "").trim();
+  const mobileImage = String(source.mobileImage || "").trim();
+  const buttonText = String(source.buttonText || source.ctaLabel || "View details").trim();
+  return {
+    ...source,
+    heading,
+    title: heading,
+    subheading,
+    subtitle: subheading,
+    desktopImage,
+    mobileImage,
+    image: desktopImage,
+    buttonText,
+    ctaLabel: buttonText,
+    buttonLink: String(source.buttonLink || "").trim(),
+    sortOrder: Number(source.sortOrder || 0),
+    active: flagValue(source.active, true)
+  };
+}
+
+function normalizeGalleryItem(item) {
+  const source = item || {};
+  const image = String(source.image || source.mediaUrl || "").trim();
+  const destination = String(source.destination || "").trim();
+  const caption = String(source.caption || source.title || "").trim();
+  return {
+    ...source,
+    image,
+    mediaUrl: image,
+    mediaType: "image",
+    destination,
+    title: destination || caption || String(source.title || "").trim(),
+    caption,
+    tags: normalizeArrayText(source.tags || destination),
+    sortOrder: Number(source.sortOrder || 0),
+    active: flagValue(source.active, true)
+  };
+}
+
+function normalizePopupSettings(popup) {
+  const source = popup || {};
+  const allowedTypes = ["seasonal_offer", "important_travel_notice", "festival_discount", "temporary_announcement"];
+  const popupType = allowedTypes.includes(source.popupType) ? source.popupType : "seasonal_offer";
+  const showOnce =
+    source.showOncePerDevice !== undefined
+      ? flagValue(source.showOncePerDevice, true)
+      : source.showOnEveryVisit !== undefined
+        ? !flagValue(source.showOnEveryVisit, false)
+        : true;
+  return {
+    enabled: flagValue(source.enabled, false),
+    popupType,
+    title: String(source.title || "Plan your next trip with VRK").trim(),
+    message: String(source.message || "Send a booking request and owner will share a quotation.").trim(),
+    buttonLabel: String(source.buttonLabel || "Book now").trim(),
+    buttonLink: String(source.buttonLink || "#quickBooking").trim(),
+    image: String(source.image || "").trim(),
+    startDate: String(source.startDate || "").trim(),
+    endDate: String(source.endDate || "").trim(),
+    allowClose: flagValue(source.allowClose, true),
+    showOncePerDevice: showOnce,
+    showOnEveryVisit: !showOnce
+  };
+}
+
+function normalizeStore(store) {
+  store.business = normalizeBusinessSettings(store.business);
   store.banners = Array.isArray(store.banners) ? store.banners : [];
+  store.banners = store.banners.map(normalizeBannerItem);
   store.gallery = Array.isArray(store.gallery) ? store.gallery : [];
+  store.gallery = store.gallery.map(normalizeGalleryItem);
   store.customers = Array.isArray(store.customers) ? store.customers : [];
   store.cars = Array.isArray(store.cars) ? store.cars : [];
   store.tourPackages = Array.isArray(store.tourPackages) ? store.tourPackages : [];
@@ -667,15 +753,7 @@ function normalizeStore(store) {
     booking.costItems = quotationCostItems(booking.quotation, booking.costItems);
     booking.driverTrip = normalizeDriverTrip(booking.driverTrip);
   });
-  store.popupSettings = {
-    enabled: false,
-    title: "Plan your next trip with VRK",
-    message: "Send a booking request and owner will share a quotation.",
-    buttonLabel: "Book now",
-    showOnEveryVisit: false,
-    image: "",
-    ...(store.popupSettings || {})
-  };
+  store.popupSettings = normalizePopupSettings(store.popupSettings);
   return store;
 }
 
@@ -1776,9 +1854,17 @@ async function handleApi(req, res) {
       ...store.business,
       name: String(body.name || store.business.name || "").trim(),
       tagline: String(body.tagline || "").trim(),
+      logo: String(body.logo || "").trim(),
       phone: String(body.phone || "").trim(),
+      whatsapp: String(body.whatsapp || body.whatsappNumber || "").trim(),
       email: String(body.email || "").trim(),
       address: String(body.address || "").trim(),
+      googleMapsLink: String(body.googleMapsLink || body.mapLink || "").trim(),
+      workingHours: String(body.workingHours || "").trim(),
+      aboutText: String(body.aboutText || "").trim(),
+      socialLinks: normalizeArrayText(body.socialLinks),
+      footerText: String(body.footerText || "").trim(),
+      emergencySupportNumber: String(body.emergencySupportNumber || "").trim(),
       gstNumber: String(body.gstNumber || "").trim(),
       upiId: String(body.upiId || "").trim(),
       qrImage: String(body.qrImage || "").trim(),
@@ -2031,26 +2117,34 @@ async function handleApi(req, res) {
     normalizeStore(store);
     const body = await readBody(req);
     const prompt = String(body.prompt || "").trim();
-    const title = String(body.title || (prompt ? `Explore ${prompt}` : "")).trim();
-    requireFields({ title }, ["title"]);
-    const item = upsertById(store.banners, {
+    const heading = String(body.heading || body.title || (prompt ? `Explore ${prompt}` : "")).trim();
+    requireFields({ heading }, ["heading"]);
+    const desktopImage = String(body.desktopImage || body.image || "").trim();
+    const mobileImage = String(body.mobileImage || "").trim();
+    const buttonText = String(body.buttonText || body.ctaLabel || "View details").trim();
+    const item = upsertById(store.banners, normalizeBannerItem({
       id: body.id || id("BAN"),
-      title,
-      subtitle: String(body.subtitle || (prompt ? "Owner curated travel offer from VRK Tours and Travels" : "")).trim(),
+      heading,
+      title: heading,
+      subheading: String(body.subheading || body.subtitle || (prompt ? "Owner curated travel offer from VRK Tours and Travels" : "")).trim(),
       details: String(body.details || "").trim(),
       terms: normalizeArrayText(body.terms),
       validUntil: String(body.validUntil || "").trim(),
       offerLabel: String(body.offerLabel || "").trim(),
       prompt,
-      image: String(body.image || "").trim(),
-      ctaLabel: String(body.ctaLabel || "View details").trim(),
+      desktopImage,
+      mobileImage,
+      image: desktopImage,
+      buttonText,
+      ctaLabel: buttonText,
+      buttonLink: String(body.buttonLink || "").trim(),
       targetType: String(body.targetType || "").trim(),
       targetId: String(body.targetId || "").trim(),
       sortOrder: Number(body.sortOrder || 0),
-      active: body.active !== false,
+      active: flagValue(body.active, true),
       createdAt: body.createdAt || now(),
       updatedAt: now()
-    });
+    }));
     await saveStore(store);
     sendJson(res, 200, { item });
     return;
@@ -2060,22 +2154,25 @@ async function handleApi(req, res) {
     if (!(await requireAdmin(req, res, store))) return;
     normalizeStore(store);
     const body = await readBody(req);
-    requireFields(body, ["title", "mediaUrl"]);
-    const item = upsertById(store.gallery, {
+    const image = String(body.image || body.mediaUrl || "").trim();
+    requireFields({ image }, ["image"]);
+    const item = upsertById(store.gallery, normalizeGalleryItem({
       id: body.id || id("GAL"),
-      title: String(body.title).trim(),
+      title: String(body.title || body.destination || body.caption || "Travel gallery").trim(),
       caption: String(body.caption || "").trim(),
-      mediaType: String(body.mediaType || "image").trim(),
-      mediaUrl: String(body.mediaUrl || "").trim(),
+      destination: String(body.destination || "").trim(),
+      image,
+      mediaType: "image",
+      mediaUrl: image,
       thumbnail: String(body.thumbnail || "").trim(),
       tripDate: String(body.tripDate || "").trim(),
-      tags: normalizeArrayText(body.tags),
+      tags: normalizeArrayText(body.tags || body.destination),
       featured: body.featured === true || body.featured === "on",
       sortOrder: Number(body.sortOrder || 0),
-      active: body.active !== false,
+      active: flagValue(body.active, true),
       createdAt: body.createdAt || now(),
       updatedAt: now()
-    });
+    }));
     await saveStore(store);
     sendJson(res, 200, { item });
     return;
@@ -2085,14 +2182,19 @@ async function handleApi(req, res) {
     if (!(await requireAdmin(req, res, store))) return;
     normalizeStore(store);
     const body = await readBody(req);
-    store.popupSettings = {
-      enabled: body.enabled === true || body.enabled === "on",
+    store.popupSettings = normalizePopupSettings({
+      enabled: flagValue(body.enabled, false),
+      popupType: String(body.popupType || "").trim(),
       title: String(body.title || "").trim(),
       message: String(body.message || "").trim(),
       buttonLabel: String(body.buttonLabel || "Book now").trim(),
-      showOnEveryVisit: body.showOnEveryVisit === true || body.showOnEveryVisit === "on",
-      image: String(body.image || "").trim()
-    };
+      buttonLink: String(body.buttonLink || "#quickBooking").trim(),
+      image: String(body.image || "").trim(),
+      startDate: String(body.startDate || "").trim(),
+      endDate: String(body.endDate || "").trim(),
+      allowClose: flagValue(body.allowClose, true),
+      showOncePerDevice: flagValue(body.showOncePerDevice, true)
+    });
     await saveStore(store);
     sendJson(res, 200, { popupSettings: store.popupSettings });
     return;

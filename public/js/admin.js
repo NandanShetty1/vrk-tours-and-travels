@@ -145,17 +145,13 @@
         title: "Homepage banners",
         empty: "No banners added.",
         fields: [
-          ["prompt", "Prompt for banner/ad idea", "textarea"],
-          ["title", "Banner title", "text"],
-          ["subtitle", "Banner subtitle", "textarea"],
-          ["details", "Banner details shown after customer clicks", "textarea"],
-          ["terms", "Banner offer terms, one per line", "textarea"],
-          ["validUntil", "Offer valid until", "date"],
-          ["offerLabel", "Offer label, example Weekend offer", "text"],
-          ["image", "Banner image URL", "url"],
-          ["targetType", "Target type: car, tour, day, or blank", "text"],
-          ["targetId", "Target service/package ID", "text"],
-          ["sortOrder", "Sort order", "number"]
+          ["desktopImage", "Desktop image", "url", { upload: true, placeholder: "Wide banner image URL" }],
+          ["mobileImage", "Mobile image", "url", { upload: true, placeholder: "Tall/mobile banner image URL" }],
+          ["heading", "Heading", "text", { required: true, placeholder: "Weekend Coorg tour offer" }],
+          ["subheading", "Subheading", "textarea"],
+          ["buttonText", "Button text", "text", { placeholder: "View details" }],
+          ["buttonLink", "Button link", "text", { placeholder: "#quickBooking or https://..." }],
+          ["sortOrder", "Display order", "number"]
         ]
       },
       gallery: {
@@ -164,14 +160,10 @@
         title: "Gallery",
         empty: "No gallery media added.",
         fields: [
-          ["title", "Gallery title", "text"],
+          ["image", "Image", "url", { upload: true, required: true, placeholder: "Completed trip image URL" }],
           ["caption", "Caption", "textarea"],
-          ["mediaType", "Media type: image or video", "text"],
-          ["mediaUrl", "Image or video URL", "url"],
-          ["thumbnail", "Thumbnail URL", "url"],
-          ["tripDate", "Trip date", "date"],
-          ["tags", "Tags, one per line", "textarea"],
-          ["sortOrder", "Sort order", "number"]
+          ["destination", "Destination", "text", { placeholder: "Mysuru, Coorg, Udupi" }],
+          ["sortOrder", "Display order", "number"]
         ]
       }
     }[section];
@@ -931,7 +923,7 @@
   }
 
   function renderCollectionItem(section, item) {
-    const title = item.name || item.title;
+    const title = item.name || item.title || item.heading || item.destination || item.caption || item.id;
     const tourDuration =
       section === "tours"
         ? [item.days ? `${item.days} days` : "", item.nights ? `${item.nights} nights` : ""].filter(Boolean).join(" / ") ||
@@ -964,6 +956,12 @@
                 ]
                   .filter(Boolean)
                   .join(" | ")
+              : section === "banners"
+                ? [item.subheading || item.subtitle, item.buttonText || item.ctaLabel, item.buttonLink, item.sortOrder ? `order ${item.sortOrder}` : ""]
+                    .filter(Boolean)
+                    .join(" | ")
+                : section === "gallery"
+                  ? [item.destination, item.caption, item.sortOrder ? `order ${item.sortOrder}` : ""].filter(Boolean).join(" | ")
               : item.category || item.destination || item.place || item.phone;
     const price =
       section === "cars"
@@ -983,8 +981,12 @@
       <article class="admin-row ${item.active ? "" : "muted"}">
         <div class="admin-row-main">
           ${
-            (section === "days" || section === "tours") && item.image
-              ? `<img class="admin-thumb" src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(title)}">`
+            ((section === "days" || section === "tours") && item.image) ||
+            (section === "banners" && (item.desktopImage || item.image)) ||
+            (section === "gallery" && (item.image || item.mediaUrl))
+              ? `<img class="admin-thumb" src="${VRK.escapeHtml(
+                  item.desktopImage || item.image || item.mediaUrl
+                )}" alt="${VRK.escapeHtml(title)}">`
               : ""
           }
           <div>
@@ -1001,6 +1003,8 @@
             }
             ${section === "days" ? `<span class="badge active">one day</span>` : ""}
             ${section === "tours" ? `<span class="badge active">tour</span>` : ""}
+            ${section === "banners" ? `<span class="badge active">banner</span>` : ""}
+            ${section === "gallery" ? `<span class="badge active">gallery</span>` : ""}
             <h3>${VRK.escapeHtml(title)}</h3>
             <p>${VRK.escapeHtml(subtitle || "")}${price ? ` | ${VRK.escapeHtml(price)}` : ""}</p>
           </div>
@@ -1122,11 +1126,17 @@
 
   function renderPopup() {
     const popup = state.data.popupSettings || {};
+    const popupTypeOptions = [
+      ["seasonal_offer", "Seasonal offer"],
+      ["important_travel_notice", "Important travel notice"],
+      ["festival_discount", "Festival discount"],
+      ["temporary_announcement", "Temporary announcement"]
+    ];
     sections.popup.innerHTML = `
       <div class="section-title">
         <div>
           <span class="eyebrow">Website popup</span>
-          <h2>First-visit booking popup</h2>
+          <h2>Timed offer or notice popup</h2>
         </div>
       </div>
       <form id="popupForm" class="admin-form form-grid">
@@ -1135,12 +1145,35 @@
           Show popup when customer opens website
         </label>
         <label>
+          Popup type
+          <select name="popupType">
+            ${popupTypeOptions
+              .map(
+                ([value, label]) =>
+                  `<option value="${value}" ${popup.popupType === value ? "selected" : ""}>${label}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+        <label>
           Popup title
           <input name="title" value="${VRK.escapeHtml(popup.title || "")}">
         </label>
         <label>
           Button label
           <input name="buttonLabel" value="${VRK.escapeHtml(popup.buttonLabel || "Book now")}">
+        </label>
+        <label>
+          Button link
+          <input name="buttonLink" value="${VRK.escapeHtml(popup.buttonLink || "#quickBooking")}">
+        </label>
+        <label>
+          Start date
+          <input name="startDate" type="date" value="${VRK.escapeHtml(popup.startDate || "")}">
+        </label>
+        <label>
+          End date
+          <input name="endDate" type="date" value="${VRK.escapeHtml(popup.endDate || "")}">
         </label>
         <label class="full">
           Popup message
@@ -1151,8 +1184,12 @@
           <input name="image" type="url" value="${VRK.escapeHtml(popup.image || "")}">
         </label>
         <label class="switch-row full">
-          <input name="showOnEveryVisit" type="checkbox" ${popup.showOnEveryVisit ? "checked" : ""}>
-          Show every visit instead of once per browser session
+          <input name="allowClose" type="checkbox" ${popup.allowClose !== false ? "checked" : ""}>
+          Show close button
+        </label>
+        <label class="switch-row full">
+          <input name="showOncePerDevice" type="checkbox" ${popup.showOncePerDevice !== false ? "checked" : ""}>
+          Show once per device
         </label>
         <button class="primary full" type="submit">Save popup settings</button>
       </form>
@@ -1166,7 +1203,8 @@
     const form = event.currentTarget;
     const payload = VRK.formToObject(form);
     payload.enabled = form.elements.enabled.checked;
-    payload.showOnEveryVisit = form.elements.showOnEveryVisit.checked;
+    payload.allowClose = form.elements.allowClose.checked;
+    payload.showOncePerDevice = form.elements.showOncePerDevice.checked;
     const button = form.querySelector("button");
     button.disabled = true;
     try {
@@ -1198,6 +1236,10 @@
           <input name="name" value="${VRK.escapeHtml(business.name)}" required>
         </label>
         <label>
+          Logo image URL
+          <input name="logo" type="url" value="${VRK.escapeHtml(business.logo || "")}">
+        </label>
+        <label>
           Invoice prefix
           <input name="invoicePrefix" value="${VRK.escapeHtml(business.invoicePrefix || "VRK")}">
         </label>
@@ -1210,16 +1252,46 @@
           <input name="phone" value="${VRK.escapeHtml(business.phone)}">
         </label>
         <label>
+          WhatsApp number
+          <input name="whatsapp" value="${VRK.escapeHtml(business.whatsapp || "")}">
+        </label>
+        <label>
           Email
           <input name="email" type="email" value="${VRK.escapeHtml(business.email)}">
+        </label>
+        <label>
+          Emergency support number
+          <input name="emergencySupportNumber" value="${VRK.escapeHtml(business.emergencySupportNumber || "")}">
         </label>
         <label class="full">
           Address
           <textarea name="address" rows="2">${VRK.escapeHtml(business.address)}</textarea>
         </label>
+        <label class="full">
+          Google Maps link
+          <input name="googleMapsLink" type="url" value="${VRK.escapeHtml(business.googleMapsLink || "")}">
+        </label>
+        <label>
+          Working hours
+          <input name="workingHours" value="${VRK.escapeHtml(business.workingHours || "")}" placeholder="Mon-Sun, 6 AM - 11 PM">
+        </label>
         <label>
           GST number
           <input name="gstNumber" value="${VRK.escapeHtml(business.gstNumber)}">
+        </label>
+        <label class="full">
+          About text
+          <textarea name="aboutText" rows="4">${VRK.escapeHtml(business.aboutText || "")}</textarea>
+        </label>
+        <label class="full">
+          Social links, one per line
+          <textarea name="socialLinks" rows="3" placeholder="Instagram = https://...&#10;Facebook = https://...">${VRK.escapeHtml(
+            VRK.linesToText(business.socialLinks)
+          )}</textarea>
+        </label>
+        <label class="full">
+          Footer text
+          <textarea name="footerText" rows="2">${VRK.escapeHtml(business.footerText || "")}</textarea>
         </label>
         <label>
           UPI ID
