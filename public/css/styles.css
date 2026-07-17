@@ -1978,6 +1978,68 @@ textarea.is-invalid {
   font-size: 0.8rem;
 }
 
+.driver-auth-tabs {
+  width: 100%;
+  margin: 12px 0 16px;
+}
+
+.driver-trip-card .booking-main {
+  align-items: flex-start;
+}
+
+.driver-action-shell {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.07);
+}
+
+.driver-action-grid,
+.driver-action-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.driver-action-panel {
+  align-items: end;
+}
+
+.driver-action-panel .full {
+  grid-column: 1 / -1;
+}
+
+.driver-action-panel label {
+  min-width: 0;
+}
+
+.driver-mini-list,
+.driver-timeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.driver-mini-list span,
+.driver-timeline span {
+  min-height: 46px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.driver-mini-list b,
+.driver-timeline b {
+  display: block;
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
 .contact-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2302,6 +2364,8 @@ textarea.is-invalid {
   .quotation-grid,
   .booking-ops,
   .checklist-grid,
+  .driver-action-grid,
+  .driver-action-panel,
   .car-rate-strip,
   .package-price-strip,
   .tour-plan-strip,

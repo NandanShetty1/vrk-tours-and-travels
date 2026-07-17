@@ -644,9 +644,20 @@ function normalizeStore(store) {
   store.banners = Array.isArray(store.banners) ? store.banners : [];
   store.gallery = Array.isArray(store.gallery) ? store.gallery : [];
   store.customers = Array.isArray(store.customers) ? store.customers : [];
+  store.cars = Array.isArray(store.cars) ? store.cars : [];
+  store.tourPackages = Array.isArray(store.tourPackages) ? store.tourPackages : [];
+  store.dayPackages = Array.isArray(store.dayPackages) ? store.dayPackages : [];
+  store.drivers = Array.isArray(store.drivers) ? store.drivers : [];
   store.bookings = Array.isArray(store.bookings) ? store.bookings : [];
   store.bookingStatusHistory = Array.isArray(store.bookingStatusHistory) ? store.bookingStatusHistory : [];
   store.quotationHistory = Array.isArray(store.quotationHistory) ? store.quotationHistory : [];
+  store.drivers.forEach((driver) => {
+    driver.email = String(driver.email || driver.authEmail || "").trim().toLowerCase();
+    driver.authEmail = driver.email;
+    driver.firebaseUid = String(driver.firebaseUid || driver.authUid || "").trim();
+    driver.phone = String(driver.phone || "").trim();
+    driver.active = flagValue(driver.active, true);
+  });
   store.bookings.forEach((booking) => {
     booking.status = normalizeBookingStatus(booking.status);
     booking.paymentStatus = normalizePaymentStatus(booking.paymentStatus);
@@ -654,6 +665,7 @@ function normalizeStore(store) {
     booking.quotation = normalizeQuotation(booking.quotation, booking);
     booking.amount = parseMoney(booking.quotation.totalAmount || booking.amount);
     booking.costItems = quotationCostItems(booking.quotation, booking.costItems);
+    booking.driverTrip = normalizeDriverTrip(booking.driverTrip);
   });
   store.popupSettings = {
     enabled: false,
@@ -701,6 +713,171 @@ function findDriver(store, driverId, accessCode) {
   return store.drivers.find(
     (driver) => driver.id === driverId && driver.accessCode === accessCode && driver.active
   );
+}
+
+function parseKmReading(value, label) {
+  const km = Number(value);
+  if (!Number.isFinite(km) || km < 0) {
+    throw validationError(`${label} must be a valid kilometre reading.`);
+  }
+  return Number(km.toFixed(1));
+}
+
+function pushDriverTripTimeline(booking, driver, action, label, detail) {
+  booking.driverTrip = normalizeDriverTrip(booking.driverTrip);
+  booking.driverTrip.timeline.push({
+    at: now(),
+    action,
+    label,
+    detail: String(detail || "").trim(),
+    driverId: driver.id,
+    by: driver.name
+  });
+}
+
+function setDriverLiveLocation(booking, body) {
+  const liveUrl = String(body.liveLocationUrl || "").trim();
+  const liveNote = String(body.liveLocationNote || "").trim();
+  if (liveUrl || liveNote) {
+    booking.liveLocation = {
+      url: liveUrl,
+      note: liveNote,
+      updatedAt: now()
+    };
+  }
+}
+
+function applyDriverAction(store, booking, driver, body = {}) {
+  booking.driverTrip = normalizeDriverTrip(booking.driverTrip);
+  const action = String(body.action || "").trim();
+  if (
+    ["trip_completed", "closed", "cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(booking.status) &&
+    action !== "report_issue"
+  ) {
+    throw validationError("This trip is already closed for driver actions.");
+  }
+  const before = { ...booking };
+  let label = "";
+  let detail = String(body.note || body.notes || "").trim();
+
+  if (action === "accept_trip") {
+    if (!["booking_confirmed", "driver_assigned"].includes(booking.status)) {
+      throw validationError("This trip cannot be accepted from the current status.");
+    }
+    booking.status = "driver_accepted";
+    label = "Driver accepted trip";
+  } else if (action === "start_travelling") {
+    if (!["booking_confirmed", "driver_assigned", "driver_accepted"].includes(booking.status)) {
+      throw validationError("Start travelling is not available for the current status.");
+    }
+    booking.status = "driver_arriving";
+    label = "Driver started travelling to pickup";
+    setDriverLiveLocation(booking, body);
+  } else if (action === "reached_pickup") {
+    if (!["driver_assigned", "driver_accepted", "driver_arriving"].includes(booking.status)) {
+      throw validationError("Reached pickup is not available for the current status.");
+    }
+    booking.status = "driver_reached";
+    label = "Driver reached pickup";
+  } else if (action === "starting_km") {
+    if (["trip_started", "on_trip"].includes(booking.status) && booking.driverTrip.startingKm !== "") {
+      throw validationError("Starting KM is already saved for this active trip.");
+    }
+    booking.driverTrip.startingKm = parseKmReading(body.startingKm, "Starting KM");
+    label = "Starting KM entered";
+    detail = `${booking.driverTrip.startingKm} km`;
+  } else if (action === "start_trip") {
+    if (["trip_started", "on_trip"].includes(booking.status)) {
+      throw validationError("This trip is already started.");
+    }
+    if (!["driver_reached", "driver_arriving", "driver_accepted", "driver_assigned"].includes(booking.status)) {
+      throw validationError("Start trip is not available for the current status.");
+    }
+    const startingKm = body.startingKm || booking.driverTrip.startingKm;
+    if (startingKm === "" || startingKm === undefined || startingKm === null) {
+      throw validationError("Enter starting KM reading before starting the trip.");
+    }
+    booking.driverTrip.startingKm = parseKmReading(startingKm, "Starting KM");
+    booking.status = "trip_started";
+    label = "Trip started";
+    detail = detail || `Starting KM ${booking.driverTrip.startingKm}`;
+    setDriverLiveLocation(booking, body);
+  } else if (action === "add_stop") {
+    if (!["trip_started", "on_trip"].includes(booking.status)) {
+      throw validationError("Stops can be added only after the trip has started.");
+    }
+    const stopName = String(body.stopName || body.stop || "").trim();
+    if (!stopName) throw validationError("Enter stop name.");
+    const stop = {
+      id: id("STOP"),
+      name: stopName,
+      note: String(body.stopNote || "").trim(),
+      at: now(),
+      driverId: driver.id
+    };
+    booking.driverTrip.stops.push(stop);
+    label = "Stop added";
+    detail = [stop.name, stop.note].filter(Boolean).join(" - ");
+  } else if (action === "resume_trip") {
+    if (!["trip_started", "on_trip"].includes(booking.status)) {
+      throw validationError("Trip can be resumed only after it has started.");
+    }
+    booking.status = "on_trip";
+    label = "Trip resumed";
+    setDriverLiveLocation(booking, body);
+  } else if (action === "report_issue") {
+    const issue = String(body.issue || body.issueNote || "").trim();
+    if (!issue) throw validationError("Enter issue details.");
+    booking.driverTrip.issues.push({
+      id: id("ISSUE"),
+      note: issue,
+      at: now(),
+      driverId: driver.id
+    });
+    label = "Issue reported";
+    detail = issue;
+  } else if (action === "ending_km") {
+    if (!["trip_started", "on_trip"].includes(booking.status)) {
+      throw validationError("Ending KM can be entered only during an active trip.");
+    }
+    const endingKm = parseKmReading(body.endingKm, "Ending KM");
+    if (booking.driverTrip.startingKm !== "" && endingKm < Number(booking.driverTrip.startingKm)) {
+      throw validationError("Ending KM cannot be less than starting KM.");
+    }
+    booking.driverTrip.endingKm = endingKm;
+    label = "Ending KM entered";
+    detail = `${booking.driverTrip.endingKm} km`;
+  } else if (action === "complete_trip") {
+    if (!["trip_started", "on_trip"].includes(booking.status)) {
+      throw validationError("Complete trip is available only during an active trip.");
+    }
+    const endingKm = body.endingKm || booking.driverTrip.endingKm;
+    if (endingKm === "" || endingKm === undefined || endingKm === null) {
+      throw validationError("Enter ending KM reading before completing the trip.");
+    }
+    booking.driverTrip.endingKm = parseKmReading(endingKm, "Ending KM");
+    if (booking.driverTrip.startingKm !== "" && booking.driverTrip.endingKm < Number(booking.driverTrip.startingKm)) {
+      throw validationError("Ending KM cannot be less than starting KM.");
+    }
+    booking.status = "trip_completed";
+    label = "Trip completed";
+    detail = detail || `Ending KM ${booking.driverTrip.endingKm}`;
+    delete booking.liveLocation;
+  } else {
+    throw validationError("Select a valid driver trip action.");
+  }
+
+  if (["trip_completed", "driver_accepted", "driver_arriving", "driver_reached"].includes(booking.status)) {
+    delete booking.liveLocation;
+  }
+  booking.updatedAt = now();
+  pushDriverTripTimeline(booking, driver, action, label, detail);
+  recordBookingStatusHistory(store, booking, before, {
+    by: driver.name,
+    source: "driver_trip_action",
+    note: detail ? `${label}: ${detail}` : label
+  });
+  return booking;
 }
 
 function normalizeArrayText(value) {
@@ -850,6 +1027,16 @@ function verifyBookingTrackingAccess(booking, payload) {
   return phone;
 }
 
+function comparablePhone(value) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  if (raw.startsWith("+")) return `+${digits}`;
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  return `+${digits}`;
+}
+
 function quotationStatus(booking) {
   const status = normalizeBookingStatus(booking.status);
   if (["cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(status)) return status;
@@ -946,6 +1133,130 @@ function customerTrackingSummary(store, booking) {
         }
       : null
   };
+}
+
+function driverPublic(driver) {
+  return {
+    id: driver.id,
+    name: driver.name,
+    phone: driver.phone,
+    email: driver.email || driver.authEmail || "",
+    license: driver.license || "",
+    rating: driver.rating || ""
+  };
+}
+
+function normalizeDriverTrip(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    startingKm: source.startingKm || source.startKm || "",
+    endingKm: source.endingKm || source.endKm || "",
+    stops: Array.isArray(source.stops) ? source.stops : [],
+    issues: Array.isArray(source.issues) ? source.issues : [],
+    timeline: Array.isArray(source.timeline) ? source.timeline : []
+  };
+}
+
+function driverBookingSummary(store, booking) {
+  const summary = bookingSummary(store, booking);
+  const car = summary.car
+    ? {
+        id: summary.car.id,
+        name: summary.car.name,
+        brand: summary.car.brand,
+        model: summary.car.model,
+        vehicleNumber: summary.car.vehicleNumber,
+        category: summary.car.category,
+        seats: summary.car.seats,
+        luggageCapacity: summary.car.luggageCapacity,
+        ac: summary.car.ac
+      }
+    : null;
+  return {
+    id: summary.id,
+    bookingType: summary.bookingType,
+    tripType: summary.tripType,
+    packageTitle: summary.packageTitle,
+    customerName: summary.customerName,
+    phone: summary.phone,
+    whatsappNumber: summary.whatsappNumber,
+    passengers: summary.passengers,
+    travelDate: summary.travelDate,
+    returnDate: summary.returnDate,
+    departureDate: summary.departureDate,
+    tripReturnDate: summary.tripReturnDate,
+    pickupTime: summary.pickupTime,
+    luggageCount: summary.luggageCount,
+    vehiclePreference: summary.vehiclePreference,
+    multipleDestinations: summary.multipleDestinations,
+    localRentalPackage: summary.localRentalPackage,
+    numberOfDays: summary.numberOfDays,
+    airportTripMode: summary.airportTripMode,
+    airportName: summary.airportName,
+    flightNumber: summary.flightNumber,
+    terminal: summary.terminal,
+    flightTime: summary.flightTime,
+    customDestinations: summary.customDestinations,
+    specialRequirements: summary.specialRequirements,
+    pickupLocation: summary.pickupLocation,
+    dropLocation: summary.dropLocation,
+    message: summary.message,
+    status: summary.status,
+    car,
+    driverTrip: normalizeDriverTrip(summary.driverTrip),
+    liveLocation: ["trip_started", "on_trip"].includes(summary.status) ? summary.liveLocation || null : null,
+    updatedAt: summary.updatedAt
+  };
+}
+
+function findFirebaseDriver(store, decoded) {
+  const uid = String(decoded.uid || "").trim();
+  const email = String(decoded.email || "").trim().toLowerCase();
+  const phone = comparablePhone(decoded.phone_number);
+  return store.drivers.find((driver) => {
+    if (!driver.active) return false;
+    if (uid && (driver.firebaseUid === uid || driver.authUid === uid)) return true;
+    if (email && [driver.email, driver.authEmail].map((value) => String(value || "").trim().toLowerCase()).includes(email)) {
+      return true;
+    }
+    if (phone && comparablePhone(driver.phone) === phone) return true;
+    return false;
+  });
+}
+
+async function verifyDriverRequest(req, store, body = {}) {
+  if (firebaseAdminConfigured()) {
+    const decoded = await verifyFirebaseToken(req, "Driver login");
+    const driver = findFirebaseDriver(store, decoded);
+    if (!driver) {
+      const err = new Error("This Firebase account is not linked to an active driver. Add the driver's Firebase email, phone, or UID in admin.");
+      err.status = 403;
+      throw err;
+    }
+    req.driver = driver;
+    return driver;
+  }
+
+  const url = new URL(req.url, "http://localhost");
+  const driverId = body.driverId || url.searchParams.get("driverId") || url.pathname.replace(/^\/api\/driver\//, "");
+  const accessCode = body.accessCode || url.searchParams.get("accessCode") || "";
+  const driver = findDriver(store, driverId, accessCode);
+  if (!driver) {
+    const err = new Error("Invalid driver access");
+    err.status = 401;
+    throw err;
+  }
+  req.driver = driver;
+  return driver;
+}
+
+async function requireDriver(req, res, store, body = {}) {
+  try {
+    return await verifyDriverRequest(req, store, body);
+  } catch (error) {
+    sendError(res, error.status || 401, error.message || "Driver login required");
+    return null;
+  }
 }
 
 function normalizeCarName(value) {
@@ -1340,7 +1651,7 @@ async function handleApi(req, res) {
       clientConfigured: client.configured,
       serverConfigured: firebaseAdminConfigured(),
       firebaseConfig: client.firebaseConfig,
-      providers: ["phone", "emailLink", "google.com"]
+      providers: ["password", "phone", "emailLink", "google.com"]
     });
     return;
   }
@@ -1691,15 +2002,22 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/admin/drivers") {
     if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
-    requireFields(body, ["name", "phone", "accessCode"]);
+    requireFields(body, ["name", "phone"]);
+    const existingDriver = store.drivers.find((driver) => driver.id === body.id) || {};
+    const email = String(body.email || body.authEmail || existingDriver.email || "").trim().toLowerCase();
+    const firebaseUid = String(body.firebaseUid || body.authUid || existingDriver.firebaseUid || "").trim();
+    const accessCode = String(body.accessCode || existingDriver.accessCode || "").trim();
     const item = upsertById(store.drivers, {
       id: body.id || id("DRV"),
       name: String(body.name).trim(),
       phone: String(body.phone).trim(),
+      email,
+      authEmail: email,
+      firebaseUid,
       license: String(body.license || "").trim(),
-      accessCode: String(body.accessCode).trim(),
+      accessCode,
       rating: Number(body.rating || 4.8),
-      active: body.active !== false,
+      active: flagValue(body.active, true),
       createdAt: body.createdAt || now(),
       updatedAt: now()
     });
@@ -1919,25 +2237,63 @@ async function handleApi(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/driver/login") {
+    if (firebaseAdminConfigured()) {
+      return sendError(res, 410, "Use Firebase driver login. Access code login is disabled on production.");
+    }
     const body = await readBody(req);
     const driver = store.drivers.find(
       (item) => item.phone === body.phone && item.accessCode === body.accessCode && item.active
     );
     if (!driver) return sendError(res, 401, "Driver phone or access code is wrong");
-    sendJson(res, 200, { driver: { id: driver.id, name: driver.name, phone: driver.phone } });
+    sendJson(res, 200, { driver: driverPublic(driver) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/driver/me") {
+    const driver = await requireDriver(req, res, store);
+    if (!driver) return;
+    const bookings = store.bookings
+      .filter((booking) => booking.assignedDriverId === driver.id)
+      .map((booking) => driverBookingSummary(store, booking));
+    sendJson(res, 200, {
+      driver: driverPublic(driver),
+      bookings
+    });
+    return;
+  }
+
+  const driverActionMatch = url.pathname.match(/^\/api\/driver\/bookings\/([^/]+)\/action$/);
+  if (req.method === "POST" && driverActionMatch) {
+    const body = await readBody(req);
+    const driver = await requireDriver(req, res, store, body);
+    if (!driver) return;
+    const booking = store.bookings.find(
+      (item) => item.id === driverActionMatch[1] && item.assignedDriverId === driver.id
+    );
+    if (!booking) return sendError(res, 404, "Assigned booking not found");
+    try {
+      applyDriverAction(store, booking, driver, body);
+    } catch (error) {
+      return sendError(res, error.status || 422, error.message || "Driver action failed");
+    }
+    await saveStore(store);
+    sendJson(res, 200, { booking: driverBookingSummary(store, booking) });
     return;
   }
 
   const driverDataMatch = url.pathname.match(/^\/api\/driver\/([^/]+)$/);
   if (req.method === "GET" && driverDataMatch) {
+    if (firebaseAdminConfigured()) {
+      return sendError(res, 410, "Use /api/driver/me with Firebase driver login.");
+    }
     const accessCode = url.searchParams.get("accessCode") || "";
     const driver = findDriver(store, driverDataMatch[1], accessCode);
     if (!driver) return sendError(res, 401, "Invalid driver access");
     const bookings = store.bookings
       .filter((booking) => booking.assignedDriverId === driver.id)
-      .map((booking) => bookingSummary(store, booking));
+      .map((booking) => driverBookingSummary(store, booking));
     sendJson(res, 200, {
-      driver: { id: driver.id, name: driver.name, phone: driver.phone, rating: driver.rating },
+      driver: driverPublic(driver),
       bookings
     });
     return;
@@ -1945,6 +2301,9 @@ async function handleApi(req, res) {
 
   const driverStatusMatch = url.pathname.match(/^\/api\/driver\/bookings\/([^/]+)\/status$/);
   if (req.method === "POST" && driverStatusMatch) {
+    if (firebaseAdminConfigured()) {
+      return sendError(res, 410, "Use the driver action workflow instead of direct status updates.");
+    }
     const body = await readBody(req);
     const driver = findDriver(store, body.driverId, body.accessCode);
     if (!driver) return sendError(res, 401, "Invalid driver access");
@@ -1979,7 +2338,7 @@ async function handleApi(req, res) {
       note: body.notes ? `${booking.status}: ${body.notes}` : `Status changed to ${booking.status}`
     });
     await saveStore(store);
-    sendJson(res, 200, { booking: bookingSummary(store, booking) });
+    sendJson(res, 200, { booking: driverBookingSummary(store, booking) });
     return;
   }
 

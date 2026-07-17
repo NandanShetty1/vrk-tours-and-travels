@@ -130,10 +130,12 @@
         title: "Drivers",
         empty: "No drivers added.",
         fields: [
-          ["name", "Driver name", "text"],
-          ["phone", "Phone", "text"],
+          ["name", "Driver name", "text", { required: true }],
+          ["phone", "Phone / Firebase OTP number", "text", { required: true, placeholder: "9876543210 or +919876543210" }],
+          ["email", "Firebase driver email", "email", { placeholder: "driver@example.com" }],
+          ["firebaseUid", "Firebase UID, optional", "text"],
           ["license", "License", "text"],
-          ["accessCode", "Access code", "text"],
+          ["accessCode", "Fallback access code, local only", "text"],
           ["rating", "Rating", "number"]
         ]
       },
@@ -953,7 +955,16 @@
             ? [item.packageType, item.startingPlace, item.destinations || item.destination, tourDuration, item.suitableVehicles]
                 .filter(Boolean)
                 .join(" | ")
-            : item.category || item.destination || item.place || item.phone;
+            : section === "drivers"
+              ? [
+                  item.phone,
+                  item.email ? `Firebase email: ${item.email}` : "",
+                  item.firebaseUid ? `UID: ${item.firebaseUid}` : "",
+                  item.license
+                ]
+                  .filter(Boolean)
+                  .join(" | ")
+              : item.category || item.destination || item.place || item.phone;
     const price =
       section === "cars"
         ? [

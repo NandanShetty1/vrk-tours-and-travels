@@ -144,9 +144,25 @@ async function main() {
       body: JSON.stringify({
         name: "Owner Driver",
         phone: "9000000001",
+        email: "owner.driver@example.com",
+        firebaseUid: "verify-driver-uid",
         license: "AP01 20260001",
         accessCode: "2468",
         rating: 4.9,
+        active: true
+      })
+    });
+
+    const otherDriverResult = await request(base, "/api/admin/drivers", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        name: "Other Driver",
+        phone: "9000000002",
+        email: "other.driver@example.com",
+        license: "AP01 20260002",
+        accessCode: "1357",
+        rating: 4.7,
         active: true
       })
     });
@@ -486,15 +502,116 @@ async function main() {
       `/api/driver/${driverLogin.driver.id}?accessCode=${driverResult.item.accessCode}`
     );
 
-    await request(base, `/api/driver/bookings/${created.booking.id}/status`, {
+    let otherDriverBlocked = false;
+    try {
+      await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+        method: "POST",
+        body: JSON.stringify({
+          driverId: otherDriverResult.item.id,
+          accessCode: otherDriverResult.item.accessCode,
+          action: "accept_trip"
+        })
+      });
+    } catch (error) {
+      otherDriverBlocked = error.status === 404;
+    }
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
       method: "POST",
       body: JSON.stringify({
         driverId: driverResult.item.id,
         accessCode: driverResult.item.accessCode,
-        status: "on_trip",
-        notes: "Driver started verification trip",
+        action: "accept_trip"
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "start_travelling"
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "reached_pickup"
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "starting_km",
+        startingKm: 1200
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "start_trip",
+        startingKm: 1200,
         liveLocationUrl: "https://maps.google.com/?q=12.9716,77.5946",
         liveLocationNote: "Verification location shared"
+      })
+    });
+
+    const trackedDuringTrip = await request(base, "/api/bookings/track", {
+      method: "POST",
+      body: JSON.stringify({
+        bookingId: created.booking.id,
+        phone: bookingPayload.phone,
+        trackingCode: created.booking.trackingCode
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "add_stop",
+        stopName: "Verification stop",
+        stopNote: "Route checkpoint"
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "report_issue",
+        issue: "Verification issue note"
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "ending_km",
+        endingKm: 1288
+      })
+    });
+
+    await request(base, `/api/driver/bookings/${created.booking.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        driverId: driverResult.item.id,
+        accessCode: driverResult.item.accessCode,
+        action: "complete_trip",
+        endingKm: 1288
       })
     });
 
@@ -572,8 +689,11 @@ async function main() {
           ).length,
           quotationHistoryEvents: adminAfterLifecycle.quotationHistory.filter((item) => item.bookingId === created.booking.id).length,
           driverTrips: driverData.bookings.length,
+          driverDataHidesPayment: driverData.bookings.every((booking) => booking.payment === undefined && booking.quotation === undefined),
+          otherDriverBlocked,
           finalTrackedStatus: tracked.booking.status,
-          liveLocationVisibleDuringTrip: Boolean(tracked.booking.liveLocation && tracked.booking.liveLocation.url),
+          liveLocationVisibleDuringTrip: Boolean(trackedDuringTrip.booking.liveLocation && trackedDuringTrip.booking.liveLocation.url),
+          liveLocationHiddenAfterComplete: !tracked.booking.liveLocation,
           billInvoiceBusiness: bill.business.name
         },
         null,

@@ -24,18 +24,48 @@
           <h1>Driver login</h1>
           <p>Drivers can view only trips assigned to their account.</p>
         </div>
-        <form id="driverLoginForm" class="form-grid">
+        <div class="auth-method-tabs driver-auth-tabs" role="tablist" aria-label="Driver login method">
+          <button class="active" data-driver-auth-method="email" type="button">Email password</button>
+          <button data-driver-auth-method="phone" type="button">Phone OTP</button>
+        </div>
+        <form id="driverEmailLoginForm" class="form-grid driver-auth-form" data-driver-auth-panel="email">
+          <label class="full">
+            Driver email
+            <input name="email" type="email" autocomplete="email" required>
+          </label>
+          <label class="full">
+            Password
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="primary full" type="submit">Login</button>
+        </form>
+        <form id="driverPhoneLoginForm" class="form-grid driver-auth-form hidden" data-driver-auth-panel="phone">
+          <label class="full">
+            India mobile number
+            <input name="phone" inputmode="numeric" maxlength="10" placeholder="9876543210" required>
+          </label>
+          <div id="driverRecaptcha" class="full"></div>
+          <button class="secondary full" id="driverSendOtpButton" type="submit">Send OTP</button>
+        </form>
+        <form id="driverOtpForm" class="form-grid hidden">
+          <label class="full">
+            OTP
+            <input name="otp" inputmode="numeric" autocomplete="one-time-code" required>
+          </label>
+          <button class="primary full" type="submit">Verify OTP</button>
+        </form>
+        <form id="driverLegacyLoginForm" class="form-grid hidden">
           <label class="full">
             Phone number
-            <input name="phone" inputmode="tel" required>
+            <input name="phone" inputmode="tel">
           </label>
           <label class="full">
             Access code
-            <input name="accessCode" type="password" inputmode="numeric" required>
+            <input name="accessCode" type="password" inputmode="numeric">
           </label>
           <button class="primary full" type="submit">Open trips</button>
-          <p class="form-message full" id="driverLoginMessage" role="status"></p>
         </form>
+        <p class="form-message full" id="driverLoginMessage" role="status"></p>
       </section>
 
       <section id="driverApp" class="hidden">
