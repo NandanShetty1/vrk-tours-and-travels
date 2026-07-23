@@ -6,8 +6,8 @@
     <title>Admin - VRK Tours and Travels</title>
     <link rel="stylesheet" href="/css/styles.css">
   </head>
-  <body>
-    <header class="topbar">
+  <body data-page="admin">
+    <header class="topbar admin-topbar">
       <a class="brand" href="/">
         <span class="brand-mark">VRK</span>
         <span>
@@ -45,37 +45,95 @@
       </section>
 
       <section id="adminApp" class="hidden">
-        <div class="dashboard-head">
-          <div>
-            <span class="eyebrow">Control center</span>
-            <h1>Business operations</h1>
+        <div class="admin-console">
+          <aside class="admin-sidebar" aria-label="Admin modules">
+            <div class="admin-side-card admin-business-card" id="adminBusinessCard">
+              <span class="eyebrow">Owner console</span>
+              <h2>VRK Tours and Travels</h2>
+              <p>Bookings, fleet, packages, drivers, website content, payments, and policies.</p>
+            </div>
+            <div class="admin-side-card">
+              <span class="eyebrow">Operations</span>
+              <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+                <button class="active" data-section="bookings" type="button">
+                  <span>Bookings</span>
+                  <small>Requests, quote, payment, driver</small>
+                </button>
+                <button data-section="cars" type="button">
+                  <span>Cars</span>
+                  <small>Fleet, rates, availability</small>
+                </button>
+                <button data-section="drivers" type="button">
+                  <span>Drivers</span>
+                  <small>Login and assigned trips</small>
+                </button>
+              </div>
+            </div>
+            <div class="admin-side-card">
+              <span class="eyebrow">Packages</span>
+              <div class="admin-tabs compact-tabs" role="tablist" aria-label="Package sections">
+                <button data-section="days" type="button">
+                  <span>One day</span>
+                  <small>Short packages</small>
+                </button>
+                <button data-section="tours" type="button">
+                  <span>Tours</span>
+                  <small>Multi-day itinerary</small>
+                </button>
+              </div>
+            </div>
+            <div class="admin-side-card">
+              <span class="eyebrow">Website</span>
+              <div class="admin-tabs compact-tabs" role="tablist" aria-label="Website content sections">
+                <button data-section="banners" type="button">
+                  <span>Banners</span>
+                  <small>Homepage slides</small>
+                </button>
+                <button data-section="gallery" type="button">
+                  <span>Gallery</span>
+                  <small>Completed trip media</small>
+                </button>
+                <button data-section="popup" type="button">
+                  <span>Popup</span>
+                  <small>Offer or notice</small>
+                </button>
+                <button data-section="settings" type="button">
+                  <span>Settings</span>
+                  <small>Contact, payment, policy</small>
+                </button>
+              </div>
+            </div>
+            <div class="admin-side-card portal-mini-list">
+              <span class="eyebrow">Quick links</span>
+              <a href="/" target="_blank" rel="noopener">Customer website</a>
+              <a href="/cars.html" target="_blank" rel="noopener">Cars page</a>
+              <a href="/driver.html" target="_blank" rel="noopener">Driver portal</a>
+            </div>
+          </aside>
+
+          <div class="admin-workbench">
+            <div class="dashboard-head">
+              <div>
+                <span class="eyebrow">Control center</span>
+                <h1>Business operations</h1>
+                <p>Review customer requests, publish packages, assign cars and drivers, and keep the public website fresh.</p>
+              </div>
+              <button id="logoutButton" class="ghost" type="button">Logout</button>
+            </div>
+
+            <div class="metric-grid" id="metrics"></div>
+
+            <section id="bookingsSection" class="admin-section"></section>
+            <section id="carsSection" class="admin-section hidden"></section>
+            <section id="toursSection" class="admin-section hidden"></section>
+            <section id="daysSection" class="admin-section hidden"></section>
+            <section id="driversSection" class="admin-section hidden"></section>
+            <section id="bannersSection" class="admin-section hidden"></section>
+            <section id="gallerySection" class="admin-section hidden"></section>
+            <section id="popupSection" class="admin-section hidden"></section>
+            <section id="settingsSection" class="admin-section hidden"></section>
           </div>
-          <button id="logoutButton" class="ghost" type="button">Logout</button>
         </div>
-
-        <div class="metric-grid" id="metrics"></div>
-
-        <div class="admin-tabs" role="tablist" aria-label="Admin sections">
-          <button class="active" data-section="bookings" type="button">Bookings</button>
-          <button data-section="cars" type="button">Cars</button>
-          <button data-section="tours" type="button">Tours</button>
-          <button data-section="days" type="button">One day</button>
-          <button data-section="drivers" type="button">Drivers</button>
-          <button data-section="banners" type="button">Banners</button>
-          <button data-section="gallery" type="button">Gallery</button>
-          <button data-section="popup" type="button">Popup</button>
-          <button data-section="settings" type="button">Settings</button>
-        </div>
-
-        <section id="bookingsSection" class="admin-section"></section>
-        <section id="carsSection" class="admin-section hidden"></section>
-        <section id="toursSection" class="admin-section hidden"></section>
-        <section id="daysSection" class="admin-section hidden"></section>
-        <section id="driversSection" class="admin-section hidden"></section>
-        <section id="bannersSection" class="admin-section hidden"></section>
-        <section id="gallerySection" class="admin-section hidden"></section>
-        <section id="popupSection" class="admin-section hidden"></section>
-        <section id="settingsSection" class="admin-section hidden"></section>
       </section>
     </main>
 

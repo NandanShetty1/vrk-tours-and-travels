@@ -10,7 +10,12 @@
       admin: null
     },
     data: null,
-    section: "bookings"
+    section: "bookings",
+    bookingFilters: {
+      stage: "active",
+      query: "",
+      sort: "newest"
+    }
   };
 
   const loginPanel = document.querySelector("#loginPanel");
@@ -19,6 +24,7 @@
   const loginMessage = document.querySelector("#adminLoginMessage");
   const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
   const metrics = document.querySelector("#metrics");
+  const adminBusinessCard = document.querySelector("#adminBusinessCard");
   const sectionButtons = Array.from(document.querySelectorAll("[data-section]"));
   const sections = {
     bookings: document.querySelector("#bookingsSection"),
@@ -191,6 +197,7 @@
   }
 
   function render() {
+    renderAdminBusinessCard();
     renderMetrics();
     renderBookings();
     renderCollection("cars");
@@ -201,6 +208,21 @@
     renderCollection("gallery");
     renderPopup();
     renderSettings();
+  }
+
+  function renderAdminBusinessCard() {
+    if (!adminBusinessCard || !state.data) return;
+    const business = state.data.business || {};
+    const phone = business.phone || business.whatsapp || "Phone not set";
+    adminBusinessCard.innerHTML = `
+      <span class="eyebrow">Owner console</span>
+      <h2>${VRK.escapeHtml(business.name || "VRK Tours and Travels")}</h2>
+      <p>${VRK.escapeHtml(business.tagline || "Bookings, fleet, packages, drivers, website content, payments, and policies.")}</p>
+      <div class="admin-contact-mini">
+        <span><b>Phone</b>${VRK.escapeHtml(phone)}</span>
+        <span><b>Email</b>${VRK.escapeHtml(business.email || "Email not set")}</span>
+      </div>
+    `;
   }
 
   function renderMetrics() {
@@ -215,19 +237,26 @@
     const revenue = bookings
       .filter((booking) => !["cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(booking.status))
       .reduce((sum, booking) => sum + Number(booking.amount || 0), 0);
+    const activeCars = state.data.cars.filter((car) => car.active && car.available !== false).length;
+    const activePackages = state.data.tourPackages.filter((item) => item.active).length + state.data.dayPackages.filter((item) => item.active).length;
+    const activeDrivers = state.data.drivers.filter((driver) => driver.active).length;
 
     metrics.innerHTML = [
-      ["Total bookings", bookings.length],
-      ["Owner review", pending],
-      ["Payment review", paymentReview],
-      ["Active trips", activeTrips],
-      ["Confirmed value", VRK.money(revenue)]
+      ["Total bookings", bookings.length, "All requests"],
+      ["Owner review", pending, "Need quotation"],
+      ["Payment review", paymentReview, "Verify proof"],
+      ["Active trips", activeTrips, "Driver flow"],
+      ["Ready fleet", activeCars, "Available cars"],
+      ["Packages live", activePackages, "Tours + one day"],
+      ["Drivers active", activeDrivers, "Assignable"],
+      ["Confirmed value", VRK.money(revenue), "Open revenue"]
     ]
       .map(
-        ([label, value]) => `
+        ([label, value, hint]) => `
           <article class="metric-card">
             <span>${label}</span>
             <strong>${value}</strong>
+            <small>${hint}</small>
           </article>
         `
       )
@@ -247,6 +276,9 @@
     one_day_package: "One day package",
     multi_day_package: "Multi day package",
     airport_transfer: "Airport transfer",
+    railway_transfer: "Railway transfer",
+    wedding_event: "Wedding / event booking",
+    corporate_booking: "Corporate booking",
     custom_trip: "Custom trip"
   };
 
@@ -310,6 +342,21 @@
       ["Flight", booking.flightNumber],
       ["Terminal", booking.terminal],
       ["Flight time", booking.flightTime],
+      ["Railway station", booking.railwayStation],
+      ["Train number", booking.trainNumber],
+      ["Train time", booking.trainTime],
+      ["Event venue", booking.eventVenue],
+      ["Event start", booking.eventStartTime],
+      ["Event end", booking.eventEndTime],
+      ["Company", booking.companyName],
+      ["Reporting time", booking.reportingTime],
+      ["Billing required", booking.billingRequired ? "Yes" : ""],
+      ["Child seat", booking.childSeatRequired ? "Required" : ""],
+      ["Senior citizen", booking.seniorCitizenTravelling ? "Yes" : ""],
+      ["Estimated distance", booking.estimatedDistanceKm ? `${booking.estimatedDistanceKm} km` : ""],
+      ["Estimated time", booking.estimatedTravelTime],
+      ["Estimated fare", booking.estimatedFare ? VRK.money(booking.estimatedFare) : ""],
+      ["Payment preference", booking.paymentPreference ? VRK.statusLabel(booking.paymentPreference) : ""],
       ["Custom route", listText(booking.customDestinations)],
       ["Budget", booking.budget ? VRK.money(booking.budget) : ""],
       ["Special requirements", booking.specialRequirements]
@@ -567,27 +614,194 @@
     `;
   }
 
-  function renderBookings() {
+  const bookingStageOptions = [
+    ["active", "Active work"],
+    ["new", "New requests"],
+    ["review", "Review / quote"],
+    ["payment", "Payment"],
+    ["trip", "Trip running"],
+    ["completed", "Completed"],
+    ["problems", "Problems / refund"],
+    ["all", "All bookings"]
+  ];
+
+  function bookingStage(booking) {
+    if (["rejected", "cancelled_by_customer", "cancelled_by_admin", "refund_pending", "refunded"].includes(booking.status)) {
+      return "problems";
+    }
+    if (["closed", "fully_paid", "balance_pending", "trip_completed"].includes(booking.status)) return "completed";
+    if (
+      ["driver_assigned", "driver_accepted", "driver_arriving", "driver_reached", "trip_started", "on_trip"].includes(
+        booking.status
+      )
+    ) {
+      return "trip";
+    }
+    if (booking.paymentStatus === "payment_submitted" || ["advance_pending", "advance_paid"].includes(booking.status)) {
+      return "payment";
+    }
+    if (["under_review", "quotation_accepted"].includes(booking.status)) return "review";
+    return "new";
+  }
+
+  function bookingMatchesStage(booking, stage) {
+    if (stage === "all") return true;
+    if (stage === "active") return !["completed", "problems"].includes(bookingStage(booking));
+    return bookingStage(booking) === stage;
+  }
+
+  function bookingSearchText(booking) {
+    return [
+      booking.id,
+      booking.customerName,
+      booking.phone,
+      booking.whatsappNumber,
+      booking.email,
+      booking.packageTitle,
+      booking.pickupLocation,
+      booking.dropLocation,
+      tripTypeLabel(booking),
+      VRK.statusLabel(booking.status),
+      VRK.statusLabel(booking.paymentStatus)
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+  }
+
+  function filteredBookings() {
+    const query = state.bookingFilters.query.trim().toLowerCase();
+    const stage = state.bookingFilters.stage;
+    const bookings = state.data.bookings
+      .filter((booking) => bookingMatchesStage(booking, stage))
+      .filter((booking) => !query || bookingSearchText(booking).includes(query));
+    const sort = state.bookingFilters.sort;
+    return bookings.sort((a, b) => {
+      if (sort === "oldest") return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      if (sort === "travelDate") return new Date(a.travelDate || a.createdAt || 0) - new Date(b.travelDate || b.createdAt || 0);
+      if (sort === "fare") return Number(b.amount || b.estimatedFare || 0) - Number(a.amount || a.estimatedFare || 0);
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+  }
+
+  function bookingStageBoard() {
     const bookings = state.data.bookings;
-    sections.bookings.innerHTML = `
-      <div class="section-title">
-        <div>
-          <span class="eyebrow">Bookings</span>
-          <h2>Customer requests and trip control</h2>
-        </div>
-      </div>
-      <div class="booking-list">
-        ${
-          bookings.length
-            ? bookings.map(renderBookingCard).join("")
-            : `<div class="empty-state">No bookings yet.</div>`
-        }
+    const counts = bookingStageOptions.reduce((acc, [key]) => {
+      acc[key] = key === "all" ? bookings.length : key === "active" ? bookings.filter((booking) => bookingMatchesStage(booking, "active")).length : 0;
+      return acc;
+    }, {});
+    bookings.forEach((booking) => {
+      const stage = bookingStage(booking);
+      counts[stage] = (counts[stage] || 0) + 1;
+    });
+    return `
+      <div class="booking-stage-board">
+        ${bookingStageOptions
+          .filter(([key]) => key !== "all")
+          .map(
+            ([key, label]) => `
+              <button class="booking-stage-card ${state.bookingFilters.stage === key ? "active" : ""}" type="button" data-booking-stage="${key}">
+                <span>${VRK.escapeHtml(label)}</span>
+                <strong>${counts[key] || 0}</strong>
+              </button>
+            `
+          )
+          .join("")}
       </div>
     `;
+  }
 
+  function bookingListHtml(bookings) {
+    if (!state.data.bookings.length) return `<div class="empty-state">No bookings yet.</div>`;
+    if (!bookings.length) return `<div class="empty-state">No bookings match this filter.</div>`;
+    return bookings.map(renderBookingCard).join("");
+  }
+
+  function bindBookingForms() {
     sections.bookings.querySelectorAll(".manage-booking-form").forEach((form) => {
       form.addEventListener("submit", saveBooking);
     });
+  }
+
+  function refreshBookingViews() {
+    const bookings = filteredBookings();
+    const list = sections.bookings.querySelector("#bookingList");
+    const count = sections.bookings.querySelector("#bookingResultCount");
+    const board = sections.bookings.querySelector("#bookingStageBoard");
+    if (count) {
+      count.textContent = `${bookings.length} of ${state.data.bookings.length} booking${state.data.bookings.length === 1 ? "" : "s"}`;
+    }
+    if (board) board.innerHTML = bookingStageBoard();
+    if (list) list.innerHTML = bookingListHtml(bookings);
+    bindBookingForms();
+    sections.bookings.querySelectorAll("[data-booking-stage]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.bookingFilters.stage = button.dataset.bookingStage;
+        const stageControl = sections.bookings.querySelector("#bookingStageFilter");
+        if (stageControl) stageControl.value = state.bookingFilters.stage;
+        refreshBookingViews();
+      });
+    });
+  }
+
+  function renderBookings() {
+    sections.bookings.innerHTML = `
+      <div class="section-title admin-section-title">
+        <div>
+          <span class="eyebrow">Bookings</span>
+          <h2>Customer requests and trip control</h2>
+          <p>Use this desk to review requests, prepare quotation, confirm payment, assign vehicle/driver, and close the trip.</p>
+        </div>
+        <span class="module-pill" id="bookingResultCount"></span>
+      </div>
+      <div id="bookingStageBoard"></div>
+      <div class="booking-control-bar">
+        <label>
+          Search
+          <input id="bookingSearch" value="${VRK.escapeHtml(state.bookingFilters.query)}" placeholder="Booking ID, customer, phone, pickup, drop">
+        </label>
+        <label>
+          Stage
+          <select id="bookingStageFilter">
+            ${bookingStageOptions
+              .map(
+                ([value, label]) =>
+                  `<option value="${value}" ${state.bookingFilters.stage === value ? "selected" : ""}>${label}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+        <label>
+          Sort
+          <select id="bookingSort">
+            <option value="newest" ${state.bookingFilters.sort === "newest" ? "selected" : ""}>Newest first</option>
+            <option value="oldest" ${state.bookingFilters.sort === "oldest" ? "selected" : ""}>Oldest first</option>
+            <option value="travelDate" ${state.bookingFilters.sort === "travelDate" ? "selected" : ""}>Travel date</option>
+            <option value="fare" ${state.bookingFilters.sort === "fare" ? "selected" : ""}>Highest fare</option>
+          </select>
+        </label>
+        <button class="ghost" id="bookingResetFilters" type="button">Reset</button>
+      </div>
+      <div class="booking-list" id="bookingList"></div>
+    `;
+
+    sections.bookings.querySelector("#bookingSearch").addEventListener("input", (event) => {
+      state.bookingFilters.query = event.currentTarget.value;
+      refreshBookingViews();
+    });
+    sections.bookings.querySelector("#bookingStageFilter").addEventListener("change", (event) => {
+      state.bookingFilters.stage = event.currentTarget.value;
+      refreshBookingViews();
+    });
+    sections.bookings.querySelector("#bookingSort").addEventListener("change", (event) => {
+      state.bookingFilters.sort = event.currentTarget.value;
+      refreshBookingViews();
+    });
+    sections.bookings.querySelector("#bookingResetFilters").addEventListener("click", () => {
+      state.bookingFilters = { stage: "active", query: "", sort: "newest" };
+      renderBookings();
+    });
+    refreshBookingViews();
   }
 
   function renderBookingCard(booking) {
@@ -874,32 +1088,94 @@
     });
   }
 
+  function collectionIntro(section) {
+    return {
+      cars: "Add only real vehicles the owner can assign. Featured active cars appear on the homepage; all active cars appear on the cars page.",
+      tours: "Build multi-day packages with destinations, itinerary, inclusions, exclusions, allowances, and starting price.",
+      days: "Create quick one-day packages with places covered, image, price, highlights, day plan, and terms.",
+      drivers: "Driver email or UID links the Firebase login to this driver. Drivers see only assigned trips.",
+      banners: "Create sliding homepage advertisements, offers, and travel posters. Add images or use ready poster style.",
+      gallery: "Publish completed-trip images in a clean gallery. Keep only real trip photos and useful captions."
+    }[section];
+  }
+
+  function collectionStats(section, items) {
+    const active = items.filter((item) => item.active).length;
+    const hidden = items.length - active;
+    const extra =
+      section === "cars"
+        ? items.filter((item) => item.active && item.available !== false).length
+        : section === "drivers"
+          ? items.filter((item) => item.active && (item.email || item.firebaseUid)).length
+          : section === "banners" || section === "gallery"
+            ? items.filter((item) => item.active).length
+            : items.filter((item) => item.featured).length;
+    const extraLabel =
+      section === "cars"
+        ? "Available"
+        : section === "drivers"
+          ? "Firebase ready"
+          : section === "banners" || section === "gallery"
+            ? "Public"
+            : "Featured";
+    return [
+      ["Total", items.length],
+      ["Active", active],
+      ["Hidden", hidden],
+      [extraLabel, extra]
+    ];
+  }
+
   function renderCollection(section) {
     const meta = collectionMeta(section);
     const items = collectionFor(section);
     const formId = `${section}Form`;
     sections[section].innerHTML = `
-      <div class="section-title">
+      <div class="section-title admin-section-title">
         <div>
           <span class="eyebrow">${meta.title}</span>
           <h2>Add or update ${meta.title.toLowerCase()}</h2>
+          <p>${VRK.escapeHtml(collectionIntro(section) || "Manage this website module from one place.")}</p>
         </div>
+        <span class="module-pill">${items.filter((item) => item.active).length} active</span>
       </div>
-      <form id="${formId}" class="admin-form form-grid">
-        <input type="hidden" name="id">
-        ${meta.fields.map((field) => renderField(field)).join("")}
-        <label class="switch-row full">
-          <input name="active" type="checkbox" checked>
-          Show this item to customers
-        </label>
-        <button class="primary full" type="submit">Save ${meta.title}</button>
-      </form>
-      <div class="admin-list">
-        ${
-          items.length
-            ? items.map((item) => renderCollectionItem(section, item)).join("")
-            : `<div class="empty-state">${meta.empty}</div>`
-        }
+      <div class="admin-module-grid">
+        <form id="${formId}" class="admin-form admin-form-card form-grid">
+          <div class="admin-card-head full">
+            <div>
+              <b>${VRK.escapeHtml(meta.title)} entry</b>
+              <small>Use Edit to load an existing item here, then Save.</small>
+            </div>
+            <span class="badge active">Admin only</span>
+          </div>
+          <input type="hidden" name="id">
+          ${meta.fields.map((field) => renderField(field)).join("")}
+          <label class="switch-row full">
+            <input name="active" type="checkbox" checked>
+            Show this item to customers
+          </label>
+          <button class="primary full" type="submit">Save ${meta.title}</button>
+        </form>
+        <div class="admin-list-panel">
+          <div class="admin-card-head">
+            <div>
+              <b>Published records</b>
+              <small>Hide keeps history safe. Delete is only for wrong or unused entries.</small>
+            </div>
+          </div>
+          <div class="module-stat-grid">
+            ${collectionStats(section, items)
+              .map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`)
+              .join("")}
+          </div>
+          <div class="admin-list">
+            ${
+              items.length
+                ? items.map((item) => renderCollectionItem(section, item)).join("")
+                : `<div class="empty-state">${meta.empty}</div>`
+            }
+          </div>
+        </div>
       </div>
     `;
 
@@ -1136,13 +1412,21 @@
       ["temporary_announcement", "Temporary announcement"]
     ];
     sections.popup.innerHTML = `
-      <div class="section-title">
+      <div class="section-title admin-section-title">
         <div>
           <span class="eyebrow">Website popup</span>
           <h2>Timed offer or notice popup</h2>
+          <p>Use this only for seasonal offers, temporary announcements, festival discounts, or important travel notices.</p>
         </div>
       </div>
-      <form id="popupForm" class="admin-form form-grid">
+      <form id="popupForm" class="admin-form admin-form-card form-grid">
+        <div class="admin-card-head full">
+          <div>
+            <b>Popup controls</b>
+            <small>Set date range, close option, and whether each device sees it once.</small>
+          </div>
+          <span class="badge ${popup.enabled ? "good" : "warn"}">${popup.enabled ? "enabled" : "off"}</span>
+        </div>
         <label class="switch-row full">
           <input name="enabled" type="checkbox" ${popup.enabled ? "checked" : ""}>
           Show popup when customer opens website
@@ -1227,13 +1511,21 @@
   function renderSettings() {
     const business = state.data.business;
     sections.settings.innerHTML = `
-      <div class="section-title">
+      <div class="section-title admin-section-title">
         <div>
           <span class="eyebrow">Owner settings</span>
           <h2>Business, payment, and bill details</h2>
+          <p>These details power the customer website, bill, footer, payment instructions, policies, and support buttons.</p>
         </div>
       </div>
-      <form id="settingsForm" class="admin-form form-grid">
+      <form id="settingsForm" class="admin-form admin-form-card form-grid">
+        <div class="admin-card-head full">
+          <div>
+            <b>Business identity</b>
+            <small>Logo can be added later. Keep contact and payment details owner-approved.</small>
+          </div>
+          <span class="badge active">Live website</span>
+        </div>
         <label>
           Business name
           <input name="name" value="${VRK.escapeHtml(business.name)}" required>
