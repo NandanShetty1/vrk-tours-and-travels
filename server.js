@@ -637,7 +637,7 @@ function recordBookingStatusHistory(store, booking, before, meta = {}) {
 function normalizeBusinessSettings(business) {
   const current = business || {};
   return {
-    logo: "",
+    logo: "/assets/vrk-logo.jpeg",
     phone: "+91 9113673823",
     whatsapp: "+91 9113673823",
     email: "nandanshetty111@gmail.com",
@@ -661,11 +661,35 @@ function normalizeBusinessSettings(business) {
     gatewayNote: "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
     authNote: "Customer login uses Firebase Phone OTP, email link, and Google sign-in after production keys are configured.",
     ...current,
+    logo: String(current.logo || "/assets/vrk-logo.jpeg").trim(),
     phone: String(current.phone || "+91 9113673823").trim(),
     whatsapp: String(current.whatsapp || current.phone || "+91 9113673823").trim(),
     email: String(current.email || "nandanshetty111@gmail.com").trim(),
     socialLinks: normalizeArrayText(current.socialLinks),
     terms: normalizeArrayText(current.terms)
+  };
+}
+
+function normalizeReviewItem(item) {
+  const source = item || {};
+  const rating = Math.max(1, Math.min(5, parseInteger(source.rating || 5)));
+  const customerName = String(source.customerName || source.name || "VRK customer").trim();
+  const comment = String(source.comment || source.feedback || "").trim();
+  return {
+    ...source,
+    id: source.id || id("REV"),
+    bookingId: String(source.bookingId || "").trim(),
+    customerName,
+    tripName: String(source.tripName || source.packageTitle || "VRK trip").trim(),
+    destination: String(source.destination || "").trim(),
+    rating,
+    comment,
+    image: String(source.image || source.photoUrl || "").trim(),
+    source: String(source.source || "admin").trim(),
+    approved: flagValue(source.approved, flagValue(source.active, false)),
+    active: flagValue(source.active, false),
+    createdAt: source.createdAt || now(),
+    updatedAt: source.updatedAt || now()
   };
 }
 
@@ -747,6 +771,8 @@ function normalizeStore(store) {
   store.banners = store.banners.map(normalizeBannerItem);
   store.gallery = Array.isArray(store.gallery) ? store.gallery : [];
   store.gallery = store.gallery.map(normalizeGalleryItem);
+  store.reviews = Array.isArray(store.reviews) ? store.reviews : [];
+  store.reviews = store.reviews.map(normalizeReviewItem);
   store.customers = Array.isArray(store.customers) ? store.customers : [];
   store.cars = Array.isArray(store.cars) ? store.cars : [];
   store.tourPackages = Array.isArray(store.tourPackages) ? store.tourPackages : [];
@@ -784,6 +810,9 @@ function publicData(store) {
     dayPackages: store.dayPackages.filter((item) => item.active),
     banners: store.banners.filter((item) => item.active).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0)),
     gallery: store.gallery.filter((item) => item.active).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0)),
+    reviews: store.reviews
+      .filter((item) => item.active && item.approved)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
     popupSettings: store.popupSettings
   };
 }
@@ -801,6 +830,7 @@ function adminData(store) {
     quotationHistory: store.quotationHistory,
     banners: store.banners,
     gallery: store.gallery,
+    reviews: store.reviews,
     popupSettings: store.popupSettings
   };
 }
@@ -2062,6 +2092,52 @@ async function handleApi(req, res) {
     return;
   }
 
+  const feedbackMatch = url.pathname.match(/^\/api\/bookings\/([^/]+)\/feedback$/);
+  if (req.method === "POST" && feedbackMatch) {
+    const body = await readBody(req);
+    const booking = store.bookings.find((item) => item.id === feedbackMatch[1]);
+    if (!booking) return sendError(res, 404, "Booking not found");
+    try {
+      verifyBookingTrackingAccess(booking, {
+        ...body,
+        bookingId: booking.id,
+        phone: body.trackingPhone || body.phone
+      });
+    } catch (error) {
+      return sendError(res, error.status || 403, error.message || "Secure tracking verification failed.");
+    }
+    if (!["trip_completed", "fully_paid", "closed"].includes(booking.status)) {
+      return sendError(res, 422, "Feedback opens after the trip is completed.");
+    }
+    const rating = parseInteger(body.rating || 5);
+    if (rating < 1 || rating > 5) {
+      return sendError(res, 422, "Select a rating between 1 and 5.");
+    }
+    const comment = String(body.comment || body.feedback || "").trim();
+    if (comment.length < 8) {
+      return sendError(res, 422, "Please write a short feedback message.");
+    }
+    const existing = store.reviews.find((review) => review.bookingId === booking.id);
+    const review = upsertById(store.reviews, normalizeReviewItem({
+      id: existing ? existing.id : id("REV"),
+      bookingId: booking.id,
+      customerName: booking.customerName,
+      tripName: booking.packageTitle,
+      destination: booking.dropLocation,
+      rating,
+      comment,
+      image: String(body.image || body.photoUrl || "").trim(),
+      source: "customer",
+      approved: false,
+      active: false,
+      createdAt: existing ? existing.createdAt : now(),
+      updatedAt: now()
+    }));
+    await saveStore(store);
+    sendJson(res, 200, { review, message: "Thank you. Feedback was sent to admin for review before publishing." });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/cars") {
     if (!(await requireAdmin(req, res, store))) return;
     const body = await readBody(req);
@@ -2269,6 +2345,31 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/reviews") {
+    if (!(await requireAdmin(req, res, store))) return;
+    normalizeStore(store);
+    const body = await readBody(req);
+    requireFields(body, ["customerName", "rating", "comment"]);
+    const item = upsertById(store.reviews, normalizeReviewItem({
+      id: body.id || id("REV"),
+      bookingId: String(body.bookingId || "").trim(),
+      customerName: String(body.customerName || "").trim(),
+      tripName: String(body.tripName || body.packageTitle || "").trim(),
+      destination: String(body.destination || "").trim(),
+      rating: parseInteger(body.rating),
+      comment: String(body.comment || "").trim(),
+      image: String(body.image || "").trim(),
+      source: String(body.source || "admin").trim(),
+      approved: flagValue(body.approved, flagValue(body.active, true)),
+      active: flagValue(body.active, true),
+      createdAt: body.createdAt || now(),
+      updatedAt: now()
+    }));
+    await saveStore(store);
+    sendJson(res, 200, { item });
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/popup") {
     if (!(await requireAdmin(req, res, store))) return;
     normalizeStore(store);
@@ -2292,7 +2393,7 @@ async function handleApi(req, res) {
   }
 
   const archiveMatch = url.pathname.match(
-    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/archive$/
+    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery|reviews)\/([^/]+)\/archive$/
   );
   if (req.method === "POST" && archiveMatch) {
     if (!(await requireAdmin(req, res, store))) return;
@@ -2307,7 +2408,7 @@ async function handleApi(req, res) {
   }
 
   const showMatch = url.pathname.match(
-    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/show$/
+    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery|reviews)\/([^/]+)\/show$/
   );
   if (req.method === "POST" && showMatch) {
     if (!(await requireAdmin(req, res, store))) return;
@@ -2322,7 +2423,7 @@ async function handleApi(req, res) {
   }
 
   const deleteMatch = url.pathname.match(
-    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery)\/([^/]+)\/delete$/
+    /^\/api\/admin\/(cars|tourPackages|dayPackages|drivers|banners|gallery|reviews)\/([^/]+)\/delete$/
   );
   if (req.method === "DELETE" && deleteMatch) {
     if (!(await requireAdmin(req, res, store))) return;

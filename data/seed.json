@@ -2,6 +2,7 @@
   "business": {
     "name": "VRK Tours and Travels",
     "tagline": "Car booking, one way trips, tour packages, and day packages",
+    "logo": "/assets/vrk-logo.jpeg",
     "phone": "+91 9113673823",
     "whatsapp": "+91 9113673823",
     "email": "nandanshetty111@gmail.com",
@@ -36,6 +37,7 @@
   "customers": [],
   "banners": [],
   "gallery": [],
+  "reviews": [],
   "popupSettings": {
     "enabled": false,
     "title": "Plan your next trip with VRK",

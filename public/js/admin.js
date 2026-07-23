@@ -34,6 +34,7 @@
     drivers: document.querySelector("#driversSection"),
     banners: document.querySelector("#bannersSection"),
     gallery: document.querySelector("#gallerySection"),
+    reviews: document.querySelector("#reviewsSection"),
     popup: document.querySelector("#popupSection"),
     settings: document.querySelector("#settingsSection")
   };
@@ -159,7 +160,7 @@
           ["priceText", "Poster price or highlight", "text", { placeholder: "Starting INR 4,999" }],
           ["posterStyle", "Ready poster style", "select", { options: ["teal", "sunset", "forest", "royal", "mono"] }],
           ["buttonText", "Button text", "text", { placeholder: "View details" }],
-          ["buttonLink", "Button link", "text", { placeholder: "#quickBooking or https://..." }],
+          ["buttonLink", "Button link", "text", { placeholder: "#chooseTrip or https://..." }],
           ["sortOrder", "Display order", "number"]
         ]
       },
@@ -174,6 +175,22 @@
           ["destination", "Destination", "text", { placeholder: "Mysuru, Coorg, Udupi" }],
           ["sortOrder", "Display order", "number"]
         ]
+      },
+      reviews: {
+        endpoint: "/api/admin/reviews",
+        archive: "reviews",
+        title: "Reviews",
+        empty: "No customer feedback added.",
+        fields: [
+          ["customerName", "Customer name", "text", { required: true, placeholder: "Customer name" }],
+          ["rating", "Rating 1 to 5", "number", { required: true, min: 1, max: 5, step: 1 }],
+          ["tripName", "Trip / package name", "text", { placeholder: "Mysuru one day trip" }],
+          ["destination", "Destination", "text", { placeholder: "Mysuru, Coorg, Udupi" }],
+          ["bookingId", "Booking ID", "text", { placeholder: "VRK-2026-0001" }],
+          ["image", "Customer / trip image", "url", { upload: true, placeholder: "Optional review image URL" }],
+          ["comment", "Feedback comment", "textarea", { required: true }],
+          ["approved", "Approved for public website", "checkbox", { defaultChecked: true }]
+        ]
       }
     }[section];
   }
@@ -185,6 +202,7 @@
     if (section === "drivers") return state.data.drivers;
     if (section === "banners") return state.data.banners;
     if (section === "gallery") return state.data.gallery;
+    if (section === "reviews") return state.data.reviews;
     return [];
   }
 
@@ -206,6 +224,7 @@
     renderCollection("drivers");
     renderCollection("banners");
     renderCollection("gallery");
+    renderCollection("reviews");
     renderPopup();
     renderSettings();
   }
@@ -1095,7 +1114,8 @@
       days: "Create quick one-day packages with places covered, image, price, highlights, day plan, and terms.",
       drivers: "Driver email or UID links the Firebase login to this driver. Drivers see only assigned trips.",
       banners: "Create sliding homepage advertisements, offers, and travel posters. Add images or use ready poster style.",
-      gallery: "Publish completed-trip images in a clean gallery. Keep only real trip photos and useful captions."
+      gallery: "Publish completed-trip images in a clean gallery. Keep only real trip photos and useful captions.",
+      reviews: "Approve real customer feedback after completed trips. New customer feedback stays hidden until the owner publishes it."
     }[section];
   }
 
@@ -1107,15 +1127,17 @@
         ? items.filter((item) => item.active && item.available !== false).length
         : section === "drivers"
           ? items.filter((item) => item.active && (item.email || item.firebaseUid)).length
-          : section === "banners" || section === "gallery"
-            ? items.filter((item) => item.active).length
+          : section === "reviews"
+            ? items.filter((item) => item.active && item.approved).length
+            : section === "banners" || section === "gallery"
+              ? items.filter((item) => item.active).length
             : items.filter((item) => item.featured).length;
     const extraLabel =
       section === "cars"
         ? "Available"
         : section === "drivers"
           ? "Firebase ready"
-          : section === "banners" || section === "gallery"
+          : section === "banners" || section === "gallery" || section === "reviews"
             ? "Public"
             : "Featured";
     return [
@@ -1202,7 +1224,7 @@
   }
 
   function renderCollectionItem(section, item) {
-    const title = item.name || item.title || item.heading || item.destination || item.caption || item.id;
+    const title = item.name || item.title || item.heading || item.customerName || item.destination || item.caption || item.id;
     const tourDuration =
       section === "tours"
         ? [item.days ? `${item.days} days` : "", item.nights ? `${item.nights} nights` : ""].filter(Boolean).join(" / ") ||
@@ -1241,6 +1263,8 @@
                     .join(" | ")
                 : section === "gallery"
                   ? [item.destination, item.caption, item.sortOrder ? `order ${item.sortOrder}` : ""].filter(Boolean).join(" | ")
+                  : section === "reviews"
+                    ? [item.tripName, item.destination, item.bookingId, item.rating ? `${item.rating}/5` : ""].filter(Boolean).join(" | ")
               : item.category || item.destination || item.place || item.phone;
     const price =
       section === "cars"
@@ -1262,7 +1286,8 @@
           ${
             ((section === "days" || section === "tours") && item.image) ||
             (section === "banners" && (item.desktopImage || item.image)) ||
-            (section === "gallery" && (item.image || item.mediaUrl))
+            (section === "gallery" && (item.image || item.mediaUrl)) ||
+            (section === "reviews" && item.image)
               ? `<img class="admin-thumb" src="${VRK.escapeHtml(
                   item.desktopImage || item.image || item.mediaUrl
                 )}" alt="${VRK.escapeHtml(title)}">`
@@ -1284,8 +1309,13 @@
             ${section === "tours" ? `<span class="badge active">tour</span>` : ""}
             ${section === "banners" ? `<span class="badge active">banner</span>` : ""}
             ${section === "gallery" ? `<span class="badge active">gallery</span>` : ""}
+            ${
+              section === "reviews"
+                ? `<span class="badge ${item.approved ? "good" : "warn"}">${item.approved ? "approved" : "pending approval"}</span>`
+                : ""
+            }
             <h3>${VRK.escapeHtml(title)}</h3>
-            <p>${VRK.escapeHtml(subtitle || "")}${price ? ` | ${VRK.escapeHtml(price)}` : ""}</p>
+            <p>${VRK.escapeHtml(subtitle || item.comment || "")}${price ? ` | ${VRK.escapeHtml(price)}` : ""}</p>
           </div>
         </div>
         <div class="row-actions">
@@ -1452,7 +1482,7 @@
         </label>
         <label>
           Button link
-          <input name="buttonLink" value="${VRK.escapeHtml(popup.buttonLink || "#quickBooking")}">
+          <input name="buttonLink" value="${VRK.escapeHtml(popup.buttonLink || "#chooseTrip")}">
         </label>
         <label>
           Start date

@@ -77,21 +77,24 @@ img {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
+  width: 92px;
+  height: 50px;
+  flex: 0 0 92px;
   border-radius: 8px;
-  background: var(--ink);
-  color: white;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  background: #fff;
+  color: var(--primary-dark);
   font-weight: 800;
   letter-spacing: 0;
+  overflow: hidden;
 }
 
 .brand-logo {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 4px;
 }
 
 .menu-toggle {
@@ -258,6 +261,71 @@ img {
   margin: 22px auto;
 }
 
+.ride-launcher,
+.custom-trip-section {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(0, 1.22fr);
+  gap: clamp(14px, 3vw, 24px);
+  align-items: center;
+  padding: clamp(16px, 3vw, 26px);
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 243, 239, 0.94)),
+    linear-gradient(90deg, rgba(15, 118, 110, 0.1), transparent);
+  box-shadow: 0 14px 36px rgba(22, 34, 29, 0.08);
+}
+
+.ride-launcher h1,
+.custom-trip-section h2 {
+  max-width: 620px;
+}
+
+.ride-launcher p,
+.custom-trip-section p {
+  max-width: 640px;
+  margin-bottom: 0;
+}
+
+.ride-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ride-choice-grid a,
+.ride-choice-grid button {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(22, 34, 29, 0.06);
+}
+
+.ride-choice-grid a:hover,
+.ride-choice-grid button:hover {
+  border-color: rgba(15, 118, 110, 0.42);
+  background: rgba(15, 118, 110, 0.07);
+}
+
+.ride-choice-grid b {
+  color: var(--primary-dark);
+}
+
+.ride-choice-grid small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.custom-trip-section {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .homepage-flow {
   /* Homepage sections follow the customer booking journey from hero to contact. */
   gap: 34px;
@@ -377,7 +445,7 @@ img {
 }
 
 .hero-slide {
-  min-height: clamp(190px, 26vw, 310px);
+  min-height: clamp(180px, 23vw, 280px);
   display: flex;
   align-items: flex-end;
   border-radius: 8px;
@@ -418,7 +486,7 @@ img {
 }
 
 .home-hero-slide {
-  min-height: clamp(230px, 28vw, 340px);
+  min-height: clamp(210px, 25vw, 310px);
 }
 
 .home-hero-slide h1 {
@@ -653,6 +721,65 @@ p {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-2);
+}
+
+.visually-hidden-select {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.vehicle-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.vehicle-choice-card {
+  display: grid;
+  grid-template-rows: 72px auto auto;
+  gap: 7px;
+  min-height: 150px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.vehicle-choice-card img,
+.vehicle-choice-icon {
+  width: 100%;
+  height: 72px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  object-fit: cover;
+}
+
+.vehicle-choice-icon {
+  display: grid;
+  place-items: center;
+  color: var(--primary-dark);
+  font-weight: 900;
+}
+
+.vehicle-choice-card b {
+  font-size: 0.9rem;
+}
+
+.vehicle-choice-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.vehicle-choice-card.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
 }
 
 .stops-head {
@@ -1352,6 +1479,39 @@ textarea.is-invalid {
   margin-bottom: 0;
 }
 
+.review-card {
+  display: grid;
+  gap: 10px;
+}
+
+.review-card img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.review-rating {
+  width: fit-content;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(183, 121, 31, 0.14);
+  color: var(--gold);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.review-card small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.empty-review {
+  grid-column: 1 / -1;
+}
+
 .steps-grid span {
   background: rgba(15, 118, 110, 0.08);
   border-color: rgba(15, 118, 110, 0.2);
@@ -1471,7 +1631,7 @@ textarea.is-invalid {
 }
 
 .catalog-card {
-  flex: 0 0 clamp(286px, 31vw, 386px);
+  flex: 0 0 clamp(270px, 29vw, 342px);
   scroll-snap-align: start;
   box-shadow: 0 10px 28px rgba(22, 34, 29, 0.08);
   transition:
@@ -1498,7 +1658,7 @@ textarea.is-invalid {
 .service-card img {
   width: 100%;
   aspect-ratio: 16 / 10;
-  max-height: 220px;
+  max-height: 186px;
   object-fit: cover;
   background: var(--surface-2);
 }
@@ -1561,7 +1721,7 @@ textarea.is-invalid {
   gap: 8px;
   width: 100%;
   aspect-ratio: 16 / 10;
-  max-height: 220px;
+  max-height: 186px;
   padding: 18px;
   color: #fff;
   font-weight: 900;
@@ -1576,8 +1736,8 @@ textarea.is-invalid {
 
 .service-body {
   display: grid;
-  gap: 11px;
-  padding: 16px;
+  gap: 9px;
+  padding: 13px;
 }
 
 .service-body h3 {
@@ -1587,7 +1747,7 @@ textarea.is-invalid {
 
 .service-body p {
   display: -webkit-box;
-  min-height: 50px;
+  min-height: 42px;
   margin-bottom: 0;
   overflow: hidden;
   -webkit-box-orient: vertical;
@@ -1649,8 +1809,8 @@ textarea.is-invalid {
 }
 
 .service-spec-grid span {
-  min-height: 52px;
-  padding: 8px 9px;
+  min-height: 48px;
+  padding: 7px 8px;
   border-radius: 8px;
   background: var(--surface-2);
 }
@@ -1904,6 +2064,115 @@ textarea.is-invalid {
   text-underline-offset: 3px;
 }
 
+.footer-main {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.25fr) repeat(3, minmax(180px, 1fr));
+  gap: 22px;
+}
+
+.footer-brand-panel,
+.footer-links-panel,
+.footer-contact-panel,
+.footer-qa,
+.footer-steps {
+  min-width: 0;
+}
+
+.footer-brand-panel .brand-mark {
+  width: min(170px, 100%);
+  height: 72px;
+}
+
+.footer-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.footer-action-row .ghost {
+  border-color: rgba(255, 255, 255, 0.36);
+  color: #fff;
+}
+
+.footer-links-panel,
+.footer-contact-panel {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.footer-links-panel a,
+.footer-links-panel button,
+.footer-contact-panel a {
+  width: fit-content;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.84);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 800;
+}
+
+.footer-contact-panel p {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.footer-contact-panel span {
+  overflow-wrap: anywhere;
+}
+
+.footer-feature-band {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.95fr) minmax(280px, 1.05fr);
+  gap: 18px;
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.footer-qa details,
+.footer-steps span {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.footer-qa summary {
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.footer-steps {
+  align-content: start;
+}
+
+.footer-steps span {
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 800;
+}
+
+.footer-steps span b {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--primary-dark);
+}
+
 .policy-section {
   margin-top: 20px;
 }
@@ -1947,6 +2216,12 @@ textarea.is-invalid {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
+}
+
+@media (min-width: 721px) {
+  .floating-actions {
+    display: none;
+  }
 }
 
 .popup-cta {
@@ -1993,6 +2268,23 @@ textarea.is-invalid {
   gap: 12px;
 }
 
+.customer-dashboard {
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(255, 255, 255, 0.94)),
+    var(--surface-2);
+}
+
+.customer-dashboard h3 {
+  margin-bottom: 0;
+}
+
+.feedback-form {
+  padding: 12px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 8px;
+  background: #fff;
+}
+
 .info-body {
   display: grid;
   gap: 12px;
@@ -2010,6 +2302,18 @@ textarea.is-invalid {
 .info-block p {
   margin-bottom: 0;
   color: var(--ink);
+}
+
+.policy-modal-copy ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink);
+}
+
+.policy-modal-copy li {
+  line-height: 1.55;
 }
 
 .info-price {
@@ -2948,7 +3252,10 @@ body[data-page="admin"] {
   }
 
   .quick-booking-grid,
-  .contact-grid {
+  .ride-launcher,
+  .custom-trip-section,
+  .contact-grid,
+  .footer-feature-band {
     grid-template-columns: 1fr;
   }
 
@@ -2976,7 +3283,8 @@ body[data-page="admin"] {
     grid-template-columns: 1fr;
   }
 
-  .footer-grid {
+  .footer-grid,
+  .footer-main {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -3052,7 +3360,10 @@ body[data-page="admin"] {
   .ticket-grid,
   .ticket-grid.two,
   .gallery-grid,
-  .footer-grid {
+    .footer-grid,
+    .footer-main,
+    .footer-feature-band,
+    .ride-choice-grid {
     grid-template-columns: 1fr;
   }
 
@@ -3117,7 +3428,7 @@ body[data-page="admin"] {
   }
 
   .home-hero-slide {
-    min-height: 300px;
+    min-height: 230px;
   }
 
   .hero-actions a {

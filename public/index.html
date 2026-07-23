@@ -9,7 +9,7 @@
   <body data-page="home">
     <header class="topbar">
       <a class="brand" href="/">
-        <span class="brand-mark">VRK</span>
+        <span class="brand-mark"><img class="brand-logo" src="/assets/vrk-logo.jpeg" alt="VRK Tours and Travels logo"></span>
         <span>
           <strong>VRK Tours and Travels</strong>
           <small>Cars, drivers, and travel packages</small>
@@ -22,12 +22,12 @@
       </button>
       <nav class="topnav customer-nav nav-drawer" id="customerMenu" aria-label="Customer">
         <a class="active" href="/">Home</a>
-        <a href="/cars.html">Cars</a>
         <a href="#oneDayPackages">Oneday packages</a>
         <a href="#tourPackages">Tour packages</a>
-        <a href="#quickBooking" data-open-booking>Custom trip</a>
+        <a href="#customTrip">Custom trip</a>
         <a href="#trackBooking" data-open-track>Track booking</a>
-        <a href="#aboutVRK">About</a>
+        <a href="#travelGallery">Gallery</a>
+        <a href="#reviews">Reviews</a>
         <a href="#contactMap">Contact</a>
       </nav>
       <div class="topbar-actions" aria-label="Contact actions">
@@ -41,79 +41,50 @@
     </section>
 
     <main class="customer-flow homepage-flow">
-      <section class="booking-panel quick-booking-section" id="quickBooking" aria-labelledby="quick-booking-title">
-        <div class="quick-booking-grid">
-          <div>
-            <span class="eyebrow">Quick booking</span>
-            <h1 id="quick-booking-title">Choose a trip and get an owner-confirmed quote</h1>
-            <p>Book a listed car or package, or send a custom route enquiry. VRK reviews distance, timing, vehicle, toll, parking, permit, driver allowance, and payment before confirming.</p>
-            <div class="quick-promise-grid" aria-label="Booking promises">
-              <span><b>Owner quotation</b><small>Detailed quotation is shared before payment.</small></span>
-              <span><b>Flexible routes</b><small>Local rental, one-day trip, outstation, or custom tour.</small></span>
-              <span><b>Booking ID</b><small>Track status and bill after request.</small></span>
-            </div>
-          </div>
-          <div class="quick-action-panel">
-            <button class="primary" type="button" data-open-booking>Get quote</button>
-            <a class="secondary" href="#oneDayPackages">View packages</a>
-            <a class="ghost" href="/cars.html">Compare cars</a>
-            <button class="ghost" type="button" data-open-track>Track booking</button>
-          </div>
+      <section class="ride-launcher" id="chooseTrip" aria-labelledby="choose-trip-title">
+        <div>
+          <span class="eyebrow">Car booking desk</span>
+          <h1 id="choose-trip-title">Choose your VRK car trip</h1>
+          <p>Pick a one-day package, multi-day tour, or custom car trip. Booking form opens only when you tap Book now.</p>
+        </div>
+        <div class="ride-choice-grid">
+          <a href="#oneDayPackages">
+            <b>One-day trips</b>
+            <small>Temple, sightseeing, family travel</small>
+          </a>
+          <a href="#tourPackages">
+            <b>Tour packages</b>
+            <small>Multi-day routes and itinerary</small>
+          </a>
+          <button type="button" data-open-booking>
+            <b>Custom car trip</b>
+            <small>Route decided by customer</small>
+          </button>
+          <button type="button" data-open-track>
+            <b>Track booking</b>
+            <small>Booking ID, mobile, code</small>
+          </button>
         </div>
       </section>
 
-      <section class="catalog-area" aria-label="Published cars and packages">
+      <section class="catalog-area" aria-label="Published packages">
         <div id="catalog" class="catalog-grid"></div>
       </section>
 
-      <section class="trust-section" id="aboutVRK" aria-labelledby="why-vrk-title">
-        <div class="section-title">
-          <div>
-            <span class="eyebrow">Why choose VRK</span>
-            <h2 id="why-vrk-title">Travel support that feels planned, not rushed</h2>
-            <p>Built for families, office trips, temple visits, airport transfers, and multi-day tours across Karnataka and nearby states.</p>
-          </div>
+      <section class="custom-trip-section" id="customTrip" aria-labelledby="custom-trip-title">
+        <div>
+          <span class="eyebrow">Custom package</span>
+          <h2 id="custom-trip-title">Need a trip not listed here?</h2>
+          <p>Tell pickup, destination, stops, date, passengers, luggage, and vehicle preference. VRK will review and confirm the fare before payment.</p>
         </div>
-        <div class="feature-grid">
-          <article>
-            <b>Transparent fare discussion</b>
-            <p>Owner reviews route, timing, vehicle type, tolls, parking, allowances, and extra charges before asking for payment.</p>
-          </article>
-          <article>
-            <b>Cars and packages managed by owner</b>
-            <p>Only active cars, one-day packages, and tour packages published from the admin portal appear to customers.</p>
-          </article>
-          <article>
-            <b>Driver and vehicle assignment</b>
-            <p>After confirmation, admin can assign driver and car, update status, and keep the customer bill ready.</p>
-          </article>
-          <article>
-            <b>Helpful for custom routes</b>
-            <p>Customers can request a custom trip even when the exact package is not listed.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="process-section" id="howBookingWorks" aria-labelledby="booking-process-title">
-        <div class="section-title">
-          <div>
-            <span class="eyebrow">How booking works</span>
-            <h2 id="booking-process-title">Simple booking, owner-confirmed payment</h2>
-          </div>
-        </div>
-        <div class="steps-grid">
-          <span><b>1. Choose or request</b><small>Select a car/package or send a custom trip.</small></span>
-          <span><b>2. Owner quotes</b><small>Route, date, car, driver, inclusions, and quotation are checked.</small></span>
-          <span><b>3. Pay securely</b><small>Pay only after confirmation using the payment details shared on your booking.</small></span>
-          <span><b>4. Track and travel</b><small>Use booking ID to see status and bill updates.</small></span>
-        </div>
+        <button class="primary" type="button" data-open-booking>Plan custom car trip</button>
       </section>
 
       <section class="gallery-area" id="travelGallery" aria-label="Travel gallery">
         <div class="section-title">
           <div>
             <span class="eyebrow">Travel gallery</span>
-            <h2>Completed trips, car updates, and package highlights</h2>
+            <h2>Completed trips and package highlights</h2>
           </div>
         </div>
         <div id="galleryGrid" class="gallery-grid"></div>
@@ -122,25 +93,12 @@
       <section class="reviews-section" id="reviews" aria-labelledby="reviews-title">
         <div class="section-title">
           <div>
-            <span class="eyebrow">Genuine customer reviews</span>
-            <h2 id="reviews-title">Real feedback only</h2>
-            <p>Customer reviews should be added only after permission from real travellers. Until then, this section stays honest and ready.</p>
+            <span class="eyebrow">Customer reviews</span>
+            <h2 id="reviews-title">Real feedback after completed trips</h2>
+            <p>Customer feedback appears here only after the trip is completed and the owner publishes it from admin.</p>
           </div>
         </div>
-        <div class="review-grid">
-          <article>
-            <b>Verified review space</b>
-            <p>Use this area for booking-linked customer feedback after the owner collects real reviews.</p>
-          </article>
-          <article>
-            <b>Photo or trip proof ready</b>
-            <p>Reviews can be paired with completed trip gallery items for stronger trust.</p>
-          </article>
-          <article>
-            <b>No fake testimonials</b>
-            <p>This protects the business reputation and keeps the website professional.</p>
-          </article>
-        </div>
+        <div id="reviewsGrid" class="review-grid"></div>
       </section>
 
       <section class="contact-section" id="contactMap" aria-labelledby="contact-title">
@@ -201,9 +159,9 @@
       <div class="booking-modal-panel">
         <button class="modal-close" id="modalClose" type="button" aria-label="Close booking popup">x</button>
         <div class="panel-heading">
-          <span class="eyebrow">Quick booking</span>
-          <h2 id="modalTitle">Send booking request</h2>
-          <p id="modalMessage">Owner will share the exact quotation and payment details.</p>
+          <span class="eyebrow">Car booking</span>
+          <h2 id="modalTitle">Complete car booking</h2>
+          <p id="modalMessage">Owner will confirm the fare, payment, car, and driver before travel.</p>
         </div>
         <form id="modalBookingForm" class="form-grid compact"></form>
         <div id="bookingConfirmation" class="booking-confirmation hidden"></div>

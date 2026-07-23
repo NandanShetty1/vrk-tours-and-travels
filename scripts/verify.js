@@ -693,6 +693,26 @@ async function main() {
         trackingCode: created.booking.trackingCode
       })
     });
+    const feedbackResult = await request(base, `/api/bookings/${created.booking.id}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({
+        trackingPhone: bookingPayload.phone,
+        trackingCode: created.booking.trackingCode,
+        rating: 5,
+        comment: "Clean car, polite driver, and smooth verification trip."
+      })
+    });
+    const publicBeforeReviewApproval = await request(base, "/api/public-data");
+    const approvedReview = await request(base, "/api/admin/reviews", {
+      method: "POST",
+      headers: { "X-Admin-Pin": "1234" },
+      body: JSON.stringify({
+        ...feedbackResult.review,
+        active: true,
+        approved: true
+      })
+    });
+    const publicAfterReviewApproval = await request(base, "/api/public-data");
     const adminAfterLifecycle = await request(base, "/api/admin-data", {
       headers: { "X-Admin-Pin": "1234" }
     });
@@ -791,6 +811,11 @@ async function main() {
           finalTrackedStatus: tracked.booking.status,
           liveLocationVisibleDuringTrip: Boolean(trackedDuringTrip.booking.liveLocation && trackedDuringTrip.booking.liveLocation.url),
           liveLocationHiddenAfterComplete: !tracked.booking.liveLocation,
+          feedbackStoredForAdmin: adminAfterLifecycle.reviews.some((item) => item.id === feedbackResult.review.id),
+          feedbackHiddenUntilApproved: !publicBeforeReviewApproval.reviews.some((item) => item.id === feedbackResult.review.id),
+          feedbackPublicAfterApproval: publicAfterReviewApproval.reviews.some(
+            (item) => item.id === approvedReview.item.id && item.approved === true
+          ),
           billInvoiceBusiness: bill.business.name
         },
         null,

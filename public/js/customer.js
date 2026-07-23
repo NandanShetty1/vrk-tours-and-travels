@@ -24,6 +24,7 @@
   const heroCarousel = document.querySelector("#heroCarousel");
   const catalog = document.querySelector("#catalog");
   const galleryGrid = document.querySelector("#galleryGrid");
+  const reviewsGrid = document.querySelector("#reviewsGrid");
   const bookingForm = document.querySelector("#bookingForm");
   const modalBookingForm = document.querySelector("#modalBookingForm");
   const accountButton = document.querySelector("#accountButton");
@@ -494,29 +495,18 @@
       {
         id: "oneDayPackages",
         type: "day",
-        eyebrow: "Popular one-day packages",
-        title: "One-day packages for quick Karnataka trips",
-        note: "Sightseeing, temple visits, family outings, and same-day return trips published by the owner.",
+        eyebrow: "One-day services",
+        title: "Owner-published one-day car packages",
+        note: "Sightseeing, temple visits, family outings, airport or railway day routes, and same-day return trips.",
         empty: "Owner has not published active one-day packages yet."
       },
       {
         id: "tourPackages",
         type: "tour",
-        eyebrow: "Multi-day tours",
-        title: "Multi-day tour packages with planned routes",
+        eyebrow: "Tour packages",
+        title: "Multi-day car tour packages",
         note: "Package cards show days, nights, start place, destinations, vehicles, allowances, toll notes, and owner-set starting price.",
         empty: "Owner has not published active tour packages yet."
-      },
-      {
-        id: "availableCars",
-        type: "car",
-        eyebrow: "Available cars",
-        title: "Featured cars for local rentals and outstation trips",
-        note: "Owner-selected vehicles shown on the homepage. Open the full cars page to compare every active car.",
-        empty: "Owner has not marked any featured cars yet.",
-        featuredOnly: true,
-        actionHref: "/cars.html",
-        actionLabel: "View all cars"
       }
     ];
   }
@@ -682,10 +672,11 @@
             </label>
             <label class="full">
               Vehicle selection
-              <select name="preferredCarId" data-vehicle-select>
+              <select name="preferredCarId" class="visually-hidden-select" data-vehicle-select aria-label="Vehicle selection">
                 <option value="">No preference - recommend best vehicle</option>
               </select>
             </label>
+            <div class="vehicle-choice-grid full" data-vehicle-cards></div>
             <div class="vehicle-preview full" data-vehicle-preview>
               Select a vehicle or choose no preference. VRK will recommend the best car.
             </div>
@@ -833,7 +824,7 @@
       <section class="booking-step full">
         <span class="step-number">6</span>
         <div>
-          <h3>Price review</h3>
+          <h3>Booking review</h3>
           <div class="selected-strip" data-selected-strip>Select a service or send a custom trip enquiry.</div>
           <div class="quote-preview" data-quote-preview>
             Enter route and vehicle details to see an estimated fare.
@@ -871,11 +862,12 @@
         <div>
           <h3>Terms and policies</h3>
           <div class="policy-links">
-            <a href="#privacyPolicy">Privacy policy</a>
-            <a href="#cancellationPolicy">Cancellation and refund</a>
-            <a href="#pricingPolicy">Pricing policy</a>
-            <a href="#safetyGuidelines">Safety guidelines</a>
-            <a href="#faq">FAQ</a>
+            <a href="#" data-policy-open="terms">Terms and conditions</a>
+            <a href="#" data-policy-open="privacyPolicy">Privacy policy</a>
+            <a href="#" data-policy-open="cancellationPolicy">Cancellation and refund</a>
+            <a href="#" data-policy-open="pricingPolicy">Pricing policy</a>
+            <a href="#" data-policy-open="safetyGuidelines">Safety guidelines</a>
+            <a href="#" data-policy-open="faq">FAQ</a>
           </div>
           <label class="switch-row terms-check">
             <input name="termsAccepted" type="checkbox" required>
@@ -885,8 +877,7 @@
       </section>
 
       <div class="booking-form-actions full">
-        <button class="primary" type="submit" name="quoteAction" value="get_quote">Get quote</button>
-        <button class="secondary" type="submit" name="quoteAction" value="book_now">Book now</button>
+        <button class="primary" type="submit" name="quoteAction" value="book_now">Book now</button>
         <a class="ghost" href="#contactMap" data-contact-action="whatsapp" target="_blank" rel="noopener">WhatsApp enquiry</a>
         <a class="ghost" href="#contactMap" data-contact-action="call">Call now</a>
       </div>
@@ -942,6 +933,13 @@
         updateQuotePreview(form);
       }
     });
+    form.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-vehicle-card]");
+      if (!card || !form.elements.preferredCarId) return;
+      form.elements.preferredCarId.value = card.dataset.vehicleCard || "";
+      updateVehicleSummary(form);
+      updateQuotePreview(form);
+    });
     refreshTripFields(form);
     prepareBookingFormValidation(form);
     updateVehicleOptions(form);
@@ -967,9 +965,10 @@
     if (!form || !form.elements || !form.elements.preferredCarId || !state.data) return;
     const select = form.elements.preferredCarId;
     const current = select.value || (state.selected && kindForItem(state.selected) === "car" ? state.selected.id : "");
+    const cars = activeCars();
     select.innerHTML = [
       `<option value="">No preference - recommend best vehicle</option>`,
-      ...activeCars().map(
+      ...cars.map(
         (car) =>
           `<option value="${VRK.escapeHtml(car.id)}">${VRK.escapeHtml(
             [car.name, car.category, car.seats ? `${car.seats} seats` : "", car.available === false ? "unavailable" : "available"]
@@ -978,7 +977,35 @@
           )}</option>`
       )
     ].join("");
-    select.value = activeCars().some((car) => car.id === current) ? current : "";
+    select.value = cars.some((car) => car.id === current) ? current : "";
+    const cards = form.querySelector("[data-vehicle-cards]");
+    if (cards) {
+      const selectedValue = select.value;
+      cards.innerHTML = [
+        `<button class="vehicle-choice-card ${!selectedValue ? "active" : ""}" type="button" data-vehicle-card="">
+          <span class="vehicle-choice-icon">VRK</span>
+          <b>No preference</b>
+          <small>VRK recommends best car</small>
+        </button>`,
+        ...cars.slice(0, 8).map(
+          (car) => `
+            <button class="vehicle-choice-card ${selectedValue === car.id ? "active" : ""}" type="button" data-vehicle-card="${VRK.escapeHtml(car.id)}">
+              ${
+                car.image
+                  ? `<img src="${VRK.escapeHtml(car.image)}" alt="${VRK.escapeHtml(car.name || "VRK car")}" loading="lazy">`
+                  : `<span class="vehicle-choice-icon">${VRK.escapeHtml((car.category || "Car").slice(0, 3))}</span>`
+              }
+              <b>${VRK.escapeHtml(car.name || car.category || "VRK car")}</b>
+              <small>${VRK.escapeHtml(
+                [car.seats ? `${car.seats} seats` : "", car.luggageCapacity ? `${car.luggageCapacity} bags` : "", car.ac === false ? "Non AC" : "AC"]
+                  .filter(Boolean)
+                  .join(" | ") || "Owner confirms"
+              )}</small>
+            </button>
+          `
+        )
+      ].join("");
+    }
   }
 
   function vehicleSummary(vehicle) {
@@ -1002,6 +1029,16 @@
     const vehicle = vehicleForForm(form);
     const preview = form.querySelector("[data-vehicle-preview]");
     if (preview) preview.textContent = vehicleSummary(vehicle);
+    const cards = form.querySelector("[data-vehicle-cards]");
+    if (cards) {
+      cards.querySelectorAll("[data-vehicle-card]").forEach((card) => {
+        card.classList.toggle("active", card.dataset.vehicleCard === (vehicle ? vehicle.id : ""));
+      });
+      if (!vehicle) {
+        const first = cards.querySelector('[data-vehicle-card=""]');
+        if (first) first.classList.add("active");
+      }
+    }
     if (form.elements.vehiclePreference) {
       form.elements.vehiclePreference.value = vehicle ? vehicleSummary(vehicle) : "No preference - recommend best vehicle";
     }
@@ -1622,7 +1659,7 @@
             <h1>Comfortable cars, Trusted Drivers and Flexible Travel packages</h1>
             <p>Book local rentals, one day packages, outstation trips and custom tours from Karnataka.</p>
             <div class="hero-actions">
-              <a class="primary" href="#quickBooking" data-open-booking>Book a car</a>
+              <a class="primary" href="#chooseTrip">Book a car</a>
               <a class="secondary" href="#oneDayPackages">View packages</a>
               <a class="ghost hero-whatsapp" href="#contactMap" data-contact-action="whatsapp" target="_blank" rel="noopener">WhatsApp Us</a>
             </div>
@@ -1661,7 +1698,7 @@
       if (document.hidden) return;
       index = (index + 1) % slides.length;
       heroCarousel.scrollTo({ left: slides[index].offsetLeft - heroCarousel.offsetLeft, behavior: "smooth" });
-    }, 5000);
+    }, 3500);
   }
 
   function card(item) {
@@ -1720,8 +1757,6 @@
               .join("")}
           </div>
           ${kind === "car" ? carRateStrip(item) : ""}
-          ${kind === "tour" ? tourPlanStrip(item) : ""}
-          ${kind === "day" ? dayPackageStrip(item) : ""}
           <div class="tag-row">
             ${(tags.length ? tags : [serviceLabel(item)]).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
           </div>
@@ -1801,6 +1836,59 @@
     infoBook.textContent = "Book this service";
   }
 
+  function policyEntries() {
+    const business = (state.data && state.data.business) || {};
+    return {
+      terms: {
+        label: "Terms and conditions",
+        text: (business.terms || []).join("\n") || "Owner will update detailed booking terms from admin settings."
+      },
+      privacyPolicy: {
+        label: "Privacy policy",
+        text: business.privacyPolicy || "Customer contact and trip details are used only for quotation, booking, billing, and support."
+      },
+      cancellationPolicy: {
+        label: "Cancellation and refund policy",
+        text: business.cancellationPolicy || "Cancellation and refund depend on vehicle assignment, driver movement, permits, and owner confirmation."
+      },
+      pricingPolicy: {
+        label: "Pricing policy",
+        text: business.pricingPolicy || "Website fares are estimates. Final fare is confirmed after route, distance, toll, parking, and permit review."
+      },
+      safetyGuidelines: {
+        label: "Safety guidelines",
+        text: business.safetyGuidelines || "Passengers should share accurate pickup details, carry required ID proof, and follow driver safety instructions."
+      },
+      faq: {
+        label: "FAQ",
+        text: business.faqText || "Car, driver, fare, advance, balance, and payment method are confirmed by the owner before travel."
+      }
+    };
+  }
+
+  function openPolicyModal(policyKey) {
+    const entry = policyEntries()[policyKey] || policyEntries().terms;
+    state.infoItem = null;
+    infoEyebrow.textContent = "VRK policy";
+    infoTitle.textContent = entry.label;
+    infoSubtitle.textContent = "Read this before confirming your booking.";
+    const lines = String(entry.text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    infoBody.innerHTML = `
+      <div class="info-block policy-modal-copy">
+        ${
+          lines.length > 1
+            ? `<ul>${lines.map((line) => `<li>${VRK.escapeHtml(line)}</li>`).join("")}</ul>`
+            : `<p>${VRK.escapeHtml(lines[0] || "Owner will update this policy from admin settings.")}</p>`
+        }
+      </div>
+    `;
+    infoBook.classList.add("hidden");
+    infoModal.classList.remove("hidden");
+  }
+
   function renderFooter() {
     if (!siteFooter) return;
     const business = state.data.business || {};
@@ -1814,8 +1902,8 @@
       })
       .filter(Boolean);
     siteFooter.innerHTML = `
-      <div class="footer-grid">
-        <div>
+      <div class="footer-main">
+        <div class="footer-brand-panel">
           <span class="brand-mark">${
             business.logo
               ? `<img class="brand-logo" src="${VRK.escapeHtml(business.logo)}" alt="${VRK.escapeHtml(
@@ -1825,34 +1913,72 @@
           }</span>
           <h2>${VRK.escapeHtml(business.name || "VRK Tours and Travels")}</h2>
           <p>${VRK.escapeHtml(
-            business.footerText || business.aboutText || business.tagline || "Cars, tours, one way trips, and day packages."
+            business.footerText || business.aboutText || business.tagline || "Car bookings, one-day packages, and tour packages."
           )}</p>
+          <div class="footer-action-row">
+            <a class="primary" href="#chooseTrip">Book package</a>
+            <a class="secondary" href="${VRK.escapeHtml(links.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>
+            <button class="ghost" type="button" data-open-track>Track booking</button>
+          </div>
         </div>
-        <div>
+        <div class="footer-links-panel">
+          <h3>Book car trips</h3>
+          <a href="#oneDayPackages">One-day packages</a>
+          <a href="#tourPackages">Tour packages</a>
+          <a href="#customTrip">Custom car trip</a>
+          <a href="#travelGallery">Travel gallery</a>
+          <a href="#reviews">Customer reviews</a>
+        </div>
+        <div class="footer-links-panel">
+          <h3>Policies</h3>
+          <button type="button" data-policy-open="terms">Terms and conditions</button>
+          <button type="button" data-policy-open="privacyPolicy">Privacy policy</button>
+          <button type="button" data-policy-open="cancellationPolicy">Cancellation and refund</button>
+          <button type="button" data-policy-open="pricingPolicy">Pricing policy</button>
+          <button type="button" data-policy-open="safetyGuidelines">Safety guidelines</button>
+          <button type="button" data-policy-open="faq">FAQ</button>
+        </div>
+        <div class="footer-contact-panel">
           <h3>Contact</h3>
-          ${business.phone ? `<p><b>Phone</b> <a href="${VRK.escapeHtml(links.call)}">${VRK.escapeHtml(business.phone)}</a></p>` : ""}
+          ${business.phone ? `<p><b>Phone</b><a href="${VRK.escapeHtml(links.call)}">${VRK.escapeHtml(business.phone)}</a></p>` : ""}
           ${
             business.whatsapp || business.phone
-              ? `<p><b>WhatsApp</b> <a href="${VRK.escapeHtml(links.whatsapp)}" target="_blank" rel="noopener">${VRK.escapeHtml(
+              ? `<p><b>WhatsApp</b><a href="${VRK.escapeHtml(links.whatsapp)}" target="_blank" rel="noopener">${VRK.escapeHtml(
                   business.whatsapp || business.phone
                 )}</a></p>`
               : ""
           }
-          ${business.email ? `<p><b>Email</b> ${VRK.escapeHtml(business.email)}</p>` : ""}
-          ${business.emergencySupportNumber ? `<p><b>Emergency</b> ${VRK.escapeHtml(business.emergencySupportNumber)}</p>` : ""}
+          ${business.email ? `<p><b>Email</b><span>${VRK.escapeHtml(business.email)}</span></p>` : ""}
+          ${business.emergencySupportNumber ? `<p><b>Emergency</b><span>${VRK.escapeHtml(business.emergencySupportNumber)}</span></p>` : ""}
+          ${business.workingHours ? `<p><b>Hours</b><span>${VRK.escapeHtml(business.workingHours)}</span></p>` : ""}
+          ${business.address ? `<p><b>Address</b><span>${VRK.escapeHtml(business.address)}</span></p>` : ""}
+          <a href="${VRK.escapeHtml(links.map)}" target="_blank" rel="noopener">Open Google Maps</a>
+          ${business.upiId ? `<p><b>UPI</b><span>${VRK.escapeHtml(business.upiId)}</span></p>` : ""}
+          ${socialLinks.map((item) => `<a href="${VRK.escapeHtml(item.url)}" target="_blank" rel="noopener">${VRK.escapeHtml(item.label)}</a>`).join("")}
         </div>
-        <div>
-          <h3>Visit</h3>
-          ${business.address ? `<p><b>Address</b> ${VRK.escapeHtml(business.address)}</p>` : ""}
-          ${business.workingHours ? `<p><b>Hours</b> ${VRK.escapeHtml(business.workingHours)}</p>` : ""}
-          <p><a href="${VRK.escapeHtml(links.map)}" target="_blank" rel="noopener">Open Google Maps</a></p>
+      </div>
+      <div class="footer-feature-band">
+        <div class="footer-qa">
+          <h3>Why choose VRK?</h3>
+          <details open>
+            <summary>Will the price be clear before payment?</summary>
+            <p>Yes. The owner reviews route, car, toll, parking, permit, timing, and then confirms the quotation before payment.</p>
+          </details>
+          <details>
+            <summary>Can I book a package or custom route?</summary>
+            <p>Yes. Select an owner-listed one-day/tour package, or send a custom car trip request with stops and date.</p>
+          </details>
+          <details>
+            <summary>How do I know my booking status?</summary>
+            <p>Use booking ID, registered mobile number, and tracking code to view quotation, payment, car, driver, and trip status.</p>
+          </details>
         </div>
-        <div>
-          <h3>Bookings & Social</h3>
-          <p>Owner shares a quotation before payment.</p>
-          <p>Booking ID and printable bill are generated after request.</p>
-          ${business.upiId ? `<p><b>UPI</b> ${VRK.escapeHtml(business.upiId)}</p>` : ""}
-          ${socialLinks.map((item) => `<p><a href="${VRK.escapeHtml(item.url)}" target="_blank" rel="noopener">${VRK.escapeHtml(item.label)}</a></p>`).join("")}
+        <div class="footer-steps">
+          <h3>How booking works</h3>
+          <span><b>1</b> Choose package or custom trip</span>
+          <span><b>2</b> Submit route, date, passengers, and vehicle preference</span>
+          <span><b>3</b> Owner confirms quotation and payment details</span>
+          <span><b>4</b> Driver, car, live trip updates, bill, and feedback are handled in tracking</span>
         </div>
       </div>
     `;
@@ -1977,43 +2103,41 @@
     `;
   }
 
-  function renderPolicyCenter() {
-    if (!siteFooter) return;
-    const business = state.data.business || {};
-    let section = document.querySelector("#policyCenter");
-    if (!section) {
-      section = document.createElement("section");
-      section.id = "policyCenter";
-      section.className = "policy-section customer-flow";
-      siteFooter.parentNode.insertBefore(section, siteFooter);
+  function renderReviews() {
+    if (!reviewsGrid) return;
+    const items = state.data.reviews || [];
+    if (!items.length) {
+      reviewsGrid.innerHTML = `
+        <article class="review-card empty-review">
+          <b>Reviews will appear after completed trips</b>
+          <p>Customers can submit feedback from secure booking tracking after the trip is completed. Owner approves it before publishing.</p>
+        </article>
+      `;
+      return;
     }
-    const policies = [
-      ["privacyPolicy", "Privacy policy", business.privacyPolicy],
-      ["cancellationPolicy", "Cancellation and refund policy", business.cancellationPolicy],
-      ["pricingPolicy", "Pricing policy", business.pricingPolicy],
-      ["safetyGuidelines", "Safety guidelines", business.safetyGuidelines],
-      ["faq", "FAQ", business.faqText]
-    ];
-    section.innerHTML = `
-      <div class="section-title">
-        <div>
-          <span class="eyebrow">Policies</span>
-          <h2>Clear booking rules before travel</h2>
-        </div>
-      </div>
-      <div class="policy-grid">
-        ${policies
-          .map(
-            ([id, title, text]) => `
-              <article id="${VRK.escapeHtml(id)}">
-                <b>${VRK.escapeHtml(title)}</b>
-                <p>${VRK.escapeHtml(text || "Owner will update this policy from admin settings.")}</p>
-              </article>
-            `
-          )
-          .join("")}
-      </div>
-    `;
+    reviewsGrid.innerHTML = items
+      .slice(0, 9)
+      .map(
+        (item) => `
+          <article class="review-card">
+            ${
+              item.image
+                ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(item.customerName || "VRK customer")} review" loading="lazy">`
+                : ""
+            }
+            <div class="review-rating">Rating ${VRK.escapeHtml(item.rating || 5)}/5</div>
+            <p>${VRK.escapeHtml(item.comment)}</p>
+            <b>${VRK.escapeHtml(item.customerName || "VRK customer")}</b>
+            <small>${VRK.escapeHtml([item.tripName, item.destination].filter(Boolean).join(" | ") || "Completed VRK trip")}</small>
+          </article>
+        `
+      )
+      .join("");
+  }
+
+  function renderPolicyCenter() {
+    let section = document.querySelector("#policyCenter");
+    if (section) section.remove();
   }
 
   function setSelected(item, openModal) {
@@ -2066,9 +2190,9 @@
     modalClose.classList.remove("hidden");
     bookingModal.dataset.allowClose = "true";
     modalBookingForm.classList.remove("hidden");
-    document.querySelector("#modalTitle").textContent = "Get VRK trip quote";
+    document.querySelector("#modalTitle").textContent = "Complete car booking";
     document.querySelector("#modalMessage").textContent =
-      "Fill the trip details. VRK will review and confirm final fare before payment.";
+      "Add the trip details. VRK will confirm the final fare, payment details, car, and driver before travel.";
     const popupCta = bookingModal.querySelector("[data-popup-cta]");
     if (popupCta) popupCta.remove();
     const popupEyebrow = bookingModal.querySelector(".panel-heading .eyebrow");
@@ -2130,7 +2254,7 @@
     const cta = document.createElement("a");
     cta.className = "secondary popup-cta";
     cta.dataset.popupCta = "true";
-    cta.href = popup.buttonLink || "#quickBooking";
+    cta.href = popup.buttonLink || "#chooseTrip";
     cta.textContent = popup.buttonLabel || "Book now";
     heading.appendChild(cta);
     modalClose.classList.toggle("hidden", popup.allowClose === false);
@@ -2145,6 +2269,7 @@
     updateBranding();
     renderHero();
     renderGallery();
+    renderReviews();
     renderFooter();
     renderPolicyCenter();
     updateContactSections();
@@ -2456,6 +2581,13 @@
     const popupCta = event.target.closest("[data-popup-cta]");
     const customerLogout = event.target.closest("[data-customer-logout]");
     const customerDelete = event.target.closest("[data-customer-delete]");
+    const policyButton = event.target.closest("[data-policy-open]");
+
+    if (policyButton) {
+      event.preventDefault();
+      openPolicyModal(policyButton.dataset.policyOpen);
+      return;
+    }
 
     if (slideButton) {
       const shelf = slideButton.closest(".catalog-shelf");
@@ -2626,6 +2758,32 @@
   });
 
   trackResult.addEventListener("submit", async (event) => {
+    const feedbackForm = event.target.closest(".feedback-form");
+    if (feedbackForm) {
+      event.preventDefault();
+      const bookingId = feedbackForm.dataset.bookingId;
+      const payload = VRK.formToObject(feedbackForm);
+      payload.rating = Number(payload.rating || 5);
+      const button = feedbackForm.querySelector("button");
+      const message = feedbackForm.querySelector(".form-message");
+      button.disabled = true;
+      button.textContent = "Submitting...";
+      try {
+        const result = await VRK.request(`/api/bookings/${encodeURIComponent(bookingId)}/feedback`, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        VRK.setMessage(message, result.message || "Feedback sent to admin for review.", "good");
+        feedbackForm.reset();
+      } catch (error) {
+        VRK.setMessage(message, error.message, "danger");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Submit feedback";
+      }
+      return;
+    }
+
     const form = event.target.closest(".payment-form");
     if (!form) return;
     event.preventDefault();
@@ -2855,9 +3013,52 @@
     `;
   }
 
+  function canLeaveFeedback(booking) {
+    return ["trip_completed", "fully_paid", "closed"].includes(booking.status);
+  }
+
+  function feedbackForm(booking) {
+    if (!canLeaveFeedback(booking)) {
+      return `<p class="note-line">Feedback opens here after the trip is completed by VRK.</p>`;
+    }
+    return `
+      <form class="feedback-form form-grid compact" data-booking-id="${VRK.escapeHtml(booking.id)}">
+        ${trackingCredentialInputs()}
+        <div class="admin-card-head full">
+          <div>
+            <b>Share trip feedback</b>
+            <small>Your review goes to the owner first. It appears publicly only after approval.</small>
+          </div>
+        </div>
+        <label>
+          Rating
+          <select name="rating" required>
+            <option value="5">5 - Excellent</option>
+            <option value="4">4 - Good</option>
+            <option value="3">3 - Okay</option>
+            <option value="2">2 - Needs improvement</option>
+            <option value="1">1 - Poor</option>
+          </select>
+        </label>
+        <label>
+          Optional trip photo URL
+          <input name="image" type="url" placeholder="Paste photo URL if available">
+        </label>
+        <label class="full">
+          Feedback
+          <textarea name="comment" rows="3" minlength="8" placeholder="Tell us about car, driver, timing, cleanliness, and overall experience." required></textarea>
+        </label>
+        <button class="secondary full" type="submit">Submit feedback</button>
+        <p class="form-message full" role="status"></p>
+      </form>
+    `;
+  }
+
   function renderTrackedBooking(booking) {
     trackResult.innerHTML = `
-      <div class="mini-status">
+      <div class="mini-status customer-dashboard">
+        <span class="eyebrow">Customer dashboard</span>
+        <h3>Your VRK booking</h3>
         <div class="status-row">
           <span class="badge ${VRK.statusClass(booking.status)}">${VRK.statusLabel(booking.status)}</span>
           <span class="badge ${VRK.statusClass(booking.quotationStatus)}">${quotationLabel(
@@ -2879,6 +3080,7 @@
         ${itemList("Included", booking.includedItems)}
         ${itemList("Extra / excluded", booking.excludedItems)}
         ${paymentForm(booking)}
+        ${feedbackForm(booking)}
         <a class="secondary ticket-link" href="${VRK.escapeHtml(secureBillUrl(booking))}">Open bill / ticket</a>
       </div>
     `;
