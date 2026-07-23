@@ -24,6 +24,7 @@
   const loginMessage = document.querySelector("#adminLoginMessage");
   const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
   const metrics = document.querySelector("#metrics");
+  const adminGuide = document.querySelector("#adminGuide");
   const adminBusinessCard = document.querySelector("#adminBusinessCard");
   const sectionButtons = Array.from(document.querySelectorAll("[data-section]"));
   const sections = {
@@ -216,6 +217,7 @@
 
   function render() {
     renderAdminBusinessCard();
+    renderAdminGuide();
     renderMetrics();
     renderBookings();
     renderCollection("cars");
@@ -280,6 +282,40 @@
         `
       )
       .join("");
+  }
+
+  function renderAdminGuide() {
+    if (!adminGuide || !state.data) return;
+    const bookings = state.data.bookings || [];
+    const ownerReview = bookings.filter((booking) => ["request_submitted", "under_review"].includes(booking.status)).length;
+    const paymentReview = bookings.filter((booking) => booking.paymentStatus === "payment_submitted").length;
+    const activePackages =
+      state.data.dayPackages.filter((item) => item.active).length + state.data.tourPackages.filter((item) => item.active).length;
+    const driverReady = state.data.drivers.filter((driver) => driver.active && (driver.email || driver.firebaseUid || driver.phone)).length;
+    const liveBanners = state.data.banners.filter((item) => item.active).length;
+    const pendingReviews = state.data.reviews.filter((item) => item.active && !item.approved).length;
+    const guide = [
+      ["Review requests", ownerReview, "Call customer, check route, then prepare quotation.", "bookings"],
+      ["Quote & payment", paymentReview, "Verify advance, update payment status, and share final message.", "bookings"],
+      ["Publish packages", activePackages, "Add clean image, places, price, inclusions, and terms.", "days"],
+      ["Driver readiness", driverReady, "Keep Firebase email/phone linked and assign only active drivers.", "drivers"],
+      ["Homepage slider", liveBanners, "Post offers and trip advertisements for the customer banner.", "banners"],
+      ["Customer reviews", pendingReviews, "Approve genuine feedback after completed trips.", "reviews"]
+    ];
+    adminGuide.innerHTML = guide
+      .map(
+        ([title, value, copy, section]) => `
+          <button class="admin-guide-card" type="button" data-guide-section="${section}">
+            <span>${VRK.escapeHtml(title)}</span>
+            <strong>${VRK.escapeHtml(value)}</strong>
+            <small>${VRK.escapeHtml(copy)}</small>
+          </button>
+        `
+      )
+      .join("");
+    adminGuide.querySelectorAll("[data-guide-section]").forEach((button) => {
+      button.addEventListener("click", () => showSection(button.dataset.guideSection));
+    });
   }
 
   function bookingTypeLabel(booking) {

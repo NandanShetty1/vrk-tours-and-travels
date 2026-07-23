@@ -1707,10 +1707,16 @@
     const unavailable = kind === "car" && item.available === false;
     const specs = cardSpecsForItem(item);
     const tags = tagsForItem(item).filter(Boolean).slice(0, 4);
+    const isPackage = kind !== "car";
+    const detailText = detailForItem(item);
+    const priceText = priceForItem(item);
+    const title = titleForItem(item);
     return `
-      <article class="service-card catalog-card ${selected ? "selected" : ""} ${item.featured ? "featured-card" : ""} ${
+      <article class="service-card catalog-card ${isPackage ? "package-tile" : ""} ${selected ? "selected" : ""} ${
+      item.featured ? "featured-card" : ""
+    } ${
       unavailable ? "unavailable-card" : ""
-    }" data-card-type="${kind}">
+    }" data-card-type="${kind}" ${isPackage ? `data-card-details="${VRK.escapeHtml(item.id)}" tabindex="0" role="button"` : ""}>
         <div class="service-media">
           <div class="service-card-label">
             <span>${VRK.escapeHtml(serviceLabel(item))}</span>
@@ -1720,19 +1726,27 @@
           ${
             item.image
               ? `<img src="${VRK.escapeHtml(item.image)}" alt="${VRK.escapeHtml(
-                  `${titleForItem(item)} ${kind === "car" ? "real vehicle image" : "package image"}`
+                  `${title} ${kind === "car" ? "real vehicle image" : "package image"}`
                 )}" loading="lazy">`
-              : `<div class="image-placeholder" style="${styleForText(titleForItem(item))}">${VRK.escapeHtml(titleForItem(item))}<small>${
+              : `<div class="image-placeholder" style="${styleForText(title)}">${VRK.escapeHtml(title)}<small>${
                   kind === "car" ? "Vehicle image pending" : "Package image pending"
                 }</small></div>`
+          }
+          ${
+            isPackage
+              ? `<div class="package-tile-price">
+                  <span>Starting from</span>
+                  <strong>${priceText}</strong>
+                </div>`
+              : ""
           }
         </div>
         <div class="service-body">
           <div class="service-topline">
-            <strong>${priceForItem(item)}</strong>
-            <span>${VRK.escapeHtml(detailForItem(item))}</span>
+            <strong>${priceText}</strong>
+            <span>${VRK.escapeHtml(detailText)}</span>
           </div>
-          <h3>${VRK.escapeHtml(titleForItem(item))}</h3>
+          <h3>${VRK.escapeHtml(title)}</h3>
           ${
             kind === "car"
               ? `<div class="service-status-row">
@@ -1741,25 +1755,35 @@
                 </div>`
               : ""
           }
-          <p>${VRK.escapeHtml(
-            item.description || item.overview || "Owner-confirmed service with clear details, verified driver assignment, and booking bill."
-          )}</p>
-          <div class="service-spec-grid">
-            ${specs
-              .map(
-                ([label, value]) => `
-                  <span>
-                    <small>${VRK.escapeHtml(label)}</small>
-                    <b>${VRK.escapeHtml(value)}</b>
-                  </span>
-                `
-              )
-              .join("")}
-          </div>
-          ${kind === "car" ? carRateStrip(item) : ""}
-          <div class="tag-row">
-            ${(tags.length ? tags : [serviceLabel(item)]).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
-          </div>
+          ${
+            kind === "car"
+              ? `
+                <p>${VRK.escapeHtml(
+                  item.description || item.overview || "Owner-confirmed service with clear details, verified driver assignment, and booking bill."
+                )}</p>
+                <div class="service-spec-grid">
+                  ${specs
+                    .map(
+                      ([label, value]) => `
+                        <span>
+                          <small>${VRK.escapeHtml(label)}</small>
+                          <b>${VRK.escapeHtml(value)}</b>
+                        </span>
+                      `
+                    )
+                    .join("")}
+                </div>
+                ${carRateStrip(item)}
+                <div class="tag-row">
+                  ${(tags.length ? tags : [serviceLabel(item)]).map((tag) => `<span>${VRK.escapeHtml(tag)}</span>`).join("")}
+                </div>
+              `
+              : `
+                <p class="package-tile-summary">${VRK.escapeHtml(
+                  kind === "tour" ? "Tap to view route, itinerary, inclusions, and terms." : "Tap to view places, timing, inclusions, and terms."
+                )}</p>
+              `
+          }
           <div class="card-actions">
             <button class="ghost" data-details="${VRK.escapeHtml(item.id)}" data-type="${kind}" type="button">View details</button>
             <button class="secondary" data-book="${VRK.escapeHtml(item.id)}" data-type="${kind}" type="button" ${
@@ -2582,6 +2606,7 @@
     const customerLogout = event.target.closest("[data-customer-logout]");
     const customerDelete = event.target.closest("[data-customer-delete]");
     const policyButton = event.target.closest("[data-policy-open]");
+    const cardDetails = event.target.closest("[data-card-details]");
 
     if (policyButton) {
       event.preventDefault();
@@ -2604,6 +2629,11 @@
 
     if (detailsButton) {
       const item = itemFromActionButton(detailsButton, "details");
+      if (item) openServiceInfo(item);
+    }
+
+    if (cardDetails && !selectButton && !bookButton && !detailsButton) {
+      const item = itemByType(cardDetails.dataset.cardType).find((entry) => entry.id === cardDetails.dataset.cardDetails);
       if (item) openServiceInfo(item);
     }
 
@@ -2678,6 +2708,16 @@
     event.preventDefault();
     const banner = (state.data.banners || []).find((item) => item.id === slide.dataset.bannerInfo);
     if (banner) openBannerInfo(banner);
+  });
+
+  document.body.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    if (event.target.closest("button, a, input, select, textarea")) return;
+    const cardDetails = event.target.closest("[data-card-details]");
+    if (!cardDetails) return;
+    event.preventDefault();
+    const item = itemByType(cardDetails.dataset.cardType).find((entry) => entry.id === cardDetails.dataset.cardDetails);
+    if (item) openServiceInfo(item);
   });
 
   modalClose.addEventListener("click", () => {

@@ -6,7 +6,7 @@
     <title>Driver Portal - VRK Tours and Travels</title>
     <link rel="stylesheet" href="/css/styles.css">
   </head>
-  <body>
+  <body data-page="driver">
     <header class="topbar">
       <a class="brand" href="/">
         <span class="brand-mark"><img class="brand-logo" src="/assets/vrk-logo.jpeg" alt="VRK Tours and Travels logo"></span>
@@ -73,9 +73,11 @@
           <div>
             <span class="eyebrow">Assigned work</span>
             <h1 id="driverName">Driver trips</h1>
+            <p>Use the action buttons only for the trip assigned to you. Fare and payment are handled by the owner.</p>
           </div>
           <button id="driverLogoutButton" class="ghost" type="button">Logout</button>
         </div>
+        <div id="driverDutyGuide" class="driver-duty-guide"></div>
         <div id="driverMetrics" class="metric-grid"></div>
         <div id="driverTrips" class="trip-list"></div>
       </section>

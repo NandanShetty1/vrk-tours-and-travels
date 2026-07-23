@@ -22,6 +22,7 @@
   const legacyForm = document.querySelector("#driverLegacyLoginForm");
   const loginMessage = document.querySelector("#driverLoginMessage");
   const driverName = document.querySelector("#driverName");
+  const driverDutyGuide = document.querySelector("#driverDutyGuide");
   const metrics = document.querySelector("#driverMetrics");
   const trips = document.querySelector("#driverTrips");
   const methodButtons = Array.from(document.querySelectorAll("[data-driver-auth-method]"));
@@ -130,6 +131,7 @@
     ];
     const active = state.data.bookings.filter((booking) => activeStatuses.includes(booking.status)).length;
     const completed = state.data.bookings.filter((booking) => booking.status === "trip_completed").length;
+    renderDutyGuide(active, completed);
     metrics.innerHTML = [
       ["Assigned trips", state.data.bookings.length],
       ["Active", active],
@@ -149,6 +151,36 @@
     trips.innerHTML = state.data.bookings.length
       ? state.data.bookings.map(renderTrip).join("")
       : `<div class="empty-state">No trips assigned yet.</div>`;
+  }
+
+  function renderDutyGuide(active, completed) {
+    if (!driverDutyGuide) return;
+    const bookings = state.data.bookings || [];
+    const nextTrip = bookings
+      .slice()
+      .sort((a, b) => new Date(a.travelDate || a.createdAt || 0) - new Date(b.travelDate || b.createdAt || 0))
+      .find((booking) => !["trip_completed", "closed", "cancelled_by_customer", "cancelled_by_admin", "rejected"].includes(booking.status));
+    driverDutyGuide.innerHTML = `
+      <article>
+        <span>Next duty</span>
+        <strong>${VRK.escapeHtml(nextTrip ? nextTrip.packageTitle || nextTrip.id : "No active duty")}</strong>
+        <small>${VRK.escapeHtml(
+          nextTrip
+            ? `${VRK.dateLabel(nextTrip.travelDate)} ${nextTrip.pickupTime || ""} | ${nextTrip.pickupLocation || "Pickup not added"}`
+            : "New assignments will appear here after admin assigns you."
+        )}</small>
+      </article>
+      <article>
+        <span>Driver scope</span>
+        <strong>${active} active / ${completed} completed</strong>
+        <small>Accept trip, update travel status, KM readings, stops, issues, and completion only.</small>
+      </article>
+      <article>
+        <span>Customer support</span>
+        <strong>Call before pickup</strong>
+        <small>Confirm pickup point, keep live location during active trip, and report any issue to owner.</small>
+      </article>
+    `;
   }
 
   function listText(value) {
