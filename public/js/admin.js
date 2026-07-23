@@ -149,6 +149,9 @@
           ["mobileImage", "Mobile image", "url", { upload: true, placeholder: "Tall/mobile banner image URL" }],
           ["heading", "Heading", "text", { required: true, placeholder: "Weekend Coorg tour offer" }],
           ["subheading", "Subheading", "textarea"],
+          ["badgeText", "Poster badge / offer label", "text", { placeholder: "Festival offer" }],
+          ["priceText", "Poster price or highlight", "text", { placeholder: "Starting INR 4,999" }],
+          ["posterStyle", "Ready poster style", "select", { options: ["teal", "sunset", "forest", "royal", "mono"] }],
           ["buttonText", "Button text", "text", { placeholder: "View details" }],
           ["buttonLink", "Button link", "text", { placeholder: "#quickBooking or https://..." }],
           ["sortOrder", "Display order", "number"]
@@ -1292,6 +1295,26 @@
         <label class="full">
           Footer text
           <textarea name="footerText" rows="2">${VRK.escapeHtml(business.footerText || "")}</textarea>
+        </label>
+        <label class="full">
+          Privacy policy
+          <textarea name="privacyPolicy" rows="3">${VRK.escapeHtml(business.privacyPolicy || "")}</textarea>
+        </label>
+        <label class="full">
+          Cancellation and refund policy
+          <textarea name="cancellationPolicy" rows="3">${VRK.escapeHtml(business.cancellationPolicy || "")}</textarea>
+        </label>
+        <label class="full">
+          Pricing policy
+          <textarea name="pricingPolicy" rows="3">${VRK.escapeHtml(business.pricingPolicy || "")}</textarea>
+        </label>
+        <label class="full">
+          Safety guidelines
+          <textarea name="safetyGuidelines" rows="3">${VRK.escapeHtml(business.safetyGuidelines || "")}</textarea>
+        </label>
+        <label class="full">
+          FAQ
+          <textarea name="faqText" rows="3">${VRK.escapeHtml(business.faqText || "")}</textarea>
         </label>
         <label>
           UPI ID

@@ -112,6 +112,11 @@ async function main() {
         socialLinks: "Instagram = https://example.com/vrk\nFacebook = https://example.com/vrk-fb",
         footerText: "Trusted car rentals and travel packages.",
         emergencySupportNumber: "+91 90000 00999",
+        privacyPolicy: "Use booking details only for trip coordination.",
+        cancellationPolicy: "Owner confirms cancellation and refund.",
+        pricingPolicy: "Website fare is estimated until owner confirms.",
+        safetyGuidelines: "Carry ID proof and follow safe travel rules.",
+        faqText: "Owner confirms car, fare, and payment before travel.",
         upiId: "vrk@upi",
         paymentInstructions: "Pay only after owner shares the quotation.",
         invoicePrefix: "VRK",
@@ -227,6 +232,9 @@ async function main() {
         subheading: "Owner curated one day package with comfortable cars.",
         desktopImage: "https://example.com/banner-desktop.jpg",
         mobileImage: "https://example.com/banner-mobile.jpg",
+        badgeText: "Festival offer",
+        priceText: "Starting INR 4,500",
+        posterStyle: "sunset",
         buttonText: "Plan this trip",
         buttonLink: "#quickBooking",
         sortOrder: 1,
@@ -328,7 +336,8 @@ async function main() {
           whatsappNumber: "9999900002",
           pickupTime: "07:30",
           termsAccepted: true,
-          pickupLocation: "Old pickup point"
+          pickupLocation: "Old pickup point",
+          dropLocation: "Old drop point"
         })
       });
     } catch (error) {
@@ -350,7 +359,8 @@ async function main() {
           whatsappNumber: "9999900003",
           pickupTime: "07:30",
           termsAccepted: true,
-          pickupLocation: "Capacity pickup point"
+          pickupLocation: "Capacity pickup point",
+          dropLocation: "Capacity drop point"
         })
       });
     } catch (error) {
@@ -372,9 +382,17 @@ async function main() {
       whatsappNumber: "9999900000",
       pickupTime: "07:30",
       luggageCount: 2,
+      childSeatRequired: true,
+      seniorCitizenTravelling: true,
+      preferredCarId: carResult.item.id,
       vehiclePreference: "Sedan",
       multipleDestinations: "Temple stop\nLunch stop",
       numberOfDays: 2,
+      estimatedDistanceKm: 88,
+      estimatedTravelTime: "2 hrs 30 mins",
+      estimatedFare: 1584,
+      paymentPreference: "pay_later",
+      advancePaymentInterest: true,
       termsAccepted: true,
       pickupLocation: "Test pickup point",
       dropLocation: "Test drop point",
@@ -711,13 +729,17 @@ async function main() {
           businessLogoSaved: businessResult.business.logo === "https://example.com/logo.png",
           businessWhatsappSaved: businessResult.business.whatsapp === "+91 90000 00001",
           businessMapsSaved: businessResult.business.googleMapsLink.includes("google.com"),
+          businessPoliciesSaved: businessResult.business.privacyPolicy.includes("trip coordination"),
           publicBannerDynamic: publicAfterSetup.banners.some(
             (item) =>
               item.id === bannerResult.item.id &&
               item.desktopImage &&
               item.mobileImage &&
               item.heading === "Festival Mysuru travel offer" &&
-              item.buttonText === "Plan this trip"
+              item.buttonText === "Plan this trip" &&
+              item.badgeText === "Festival offer" &&
+              item.priceText === "Starting INR 4,500" &&
+              item.posterStyle === "sunset"
           ),
           publicGalleryDynamic: publicAfterSetup.gallery.some(
             (item) => item.id === galleryResult.item.id && item.image && item.destination === "Mysuru" && item.sortOrder === 1
@@ -745,6 +767,14 @@ async function main() {
           trackingCodeIssued: /^\d{6}$/.test(created.booking.trackingCode || ""),
           bookingTripType: created.booking.tripType,
           bookingPickupTime: created.booking.pickupTime,
+          bookingNewPassengerFields:
+            trackedAfterCreate.booking.childSeatRequired === true &&
+            trackedAfterCreate.booking.seniorCitizenTravelling === true &&
+            trackedAfterCreate.booking.preferredCarId === carResult.item.id,
+          bookingEstimateFields:
+            trackedAfterCreate.booking.estimatedDistanceKm === 88 &&
+            trackedAfterCreate.booking.estimatedTravelTime === "2 hrs 30 mins" &&
+            trackedAfterCreate.booking.estimatedFare === 1584,
           ownerConfirmedAmount: requoted.booking.amount,
           quotationTotalAmount: requoted.booking.quotation.totalAmount,
           quotationAdvancePaid: requoted.booking.quotation.advancePaid,

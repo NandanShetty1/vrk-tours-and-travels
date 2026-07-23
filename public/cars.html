@@ -15,12 +15,21 @@
           <small>Fleet for local and outstation trips</small>
         </span>
       </a>
-      <nav class="topnav customer-nav" aria-label="Customer">
+      <button class="menu-toggle" type="button" data-menu-toggle aria-expanded="false" aria-controls="customerMenu" aria-label="Open menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <nav class="topnav customer-nav nav-drawer" id="customerMenu" aria-label="Customer">
         <a href="/">Home</a>
         <a class="active" href="/cars.html">Cars</a>
-        <a href="#bookingSection">Book</a>
-        <a href="#trackBooking">Track</a>
+        <a href="#bookingSection" data-open-booking>Book</a>
+        <a href="#trackBooking" data-open-track>Track</a>
       </nav>
+      <div class="topbar-actions" aria-label="Contact actions">
+        <a class="call-link" href="#contactMap" data-contact-action="call">Call now</a>
+        <a class="whatsapp-link" href="#contactMap" data-contact-action="whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
     </header>
 
     <section class="hero-showcase" id="heroShowcase" aria-label="Fleet highlights">
@@ -39,70 +48,16 @@
         <div id="catalog" class="catalog-grid"></div>
       </section>
 
-      <section class="booking-panel booking-bottom" id="bookingSection" aria-labelledby="booking-title">
+      <section class="booking-panel booking-bottom booking-cta-section" id="bookingSection" aria-labelledby="booking-title">
         <div class="panel-heading">
           <span class="eyebrow">Fleet booking desk</span>
-          <h1 id="booking-title">Book a VRK car</h1>
-          <p>Select a car from the fleet. Owner shares a quotation, driver, and payment details before the trip.</p>
+          <h1 id="booking-title">Ready to book?</h1>
+          <p>Select any active car above and tap Book now. VRK will review route, distance, timings, vehicle capacity, and payment before final confirmation.</p>
         </div>
-
-        <form id="bookingForm" class="form-grid">
-          <label>
-            Customer name
-            <input name="customerName" autocomplete="name" required>
-          </label>
-          <label>
-            Mobile number
-            <input name="phone" autocomplete="tel" required>
-          </label>
-          <label>
-            Email
-            <input name="email" type="email" autocomplete="email">
-          </label>
-          <label>
-            Passengers
-            <input name="passengers" type="number" min="1" value="1" required>
-          </label>
-          <label>
-            Travel / departure date
-            <input name="travelDate" type="date" required>
-          </label>
-          <label>
-            Return date (if needed)
-            <input name="returnDate" type="date">
-          </label>
-          <label class="full">
-            Pickup location
-            <input name="pickupLocation" required>
-          </label>
-          <label class="full">
-            Drop location
-            <input name="dropLocation">
-          </label>
-          <label class="full">
-            Notes
-            <textarea name="message" rows="3" placeholder="Pickup time, luggage, return plan, special request"></textarea>
-          </label>
-
-          <input type="hidden" name="bookingType" id="bookingType" value="car">
-          <input type="hidden" name="packageId" id="packageId">
-          <input type="hidden" name="packageTitle" id="packageTitle">
-          <input type="hidden" name="amount" id="amount">
-
-          <div class="selected-strip full" id="selectedStrip">Select a car from the fleet.</div>
-          <button class="primary full" type="submit">Send booking request</button>
-          <p class="form-message full" id="bookingMessage" role="status"></p>
-        </form>
-
-        <div class="tracker-box" id="trackBooking">
-          <h2>Track booking</h2>
-          <form id="trackForm" class="track-form">
-            <input name="bookingId" placeholder="Booking ID, example VRK-2026-0001" required>
-            <input name="phone" inputmode="tel" placeholder="Registered mobile number" required>
-            <input name="trackingCode" inputmode="numeric" maxlength="6" placeholder="6-digit tracking code" required>
-            <button class="secondary" type="submit">Check</button>
-          </form>
-          <div id="trackResult" class="track-result" aria-live="polite"></div>
+        <div class="quick-action-panel horizontal">
+          <button class="primary" type="button" data-open-booking>Get quote</button>
+          <button class="ghost" type="button" data-open-track>Track booking</button>
+          <a class="secondary" href="/" >View packages</a>
         </div>
       </section>
 
@@ -119,6 +74,30 @@
 
     <footer id="siteFooter" class="site-footer" aria-label="Business footer"></footer>
 
+    <div class="floating-actions" aria-label="Quick contact">
+      <button class="primary" type="button" data-open-booking>Book now</button>
+      <a class="call-link" href="#contactMap" data-contact-action="call">Call</a>
+      <a class="whatsapp-link" href="#contactMap" data-contact-action="whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+
+    <div class="booking-modal hidden" id="trackModal" role="dialog" aria-modal="true" aria-labelledby="trackTitle">
+      <div class="booking-modal-panel compact-modal-panel">
+        <button class="modal-close" id="trackClose" type="button" aria-label="Close tracking popup">x</button>
+        <div class="panel-heading">
+          <span class="eyebrow">Secure tracking</span>
+          <h2 id="trackTitle">Track booking</h2>
+          <p>Enter booking ID, registered mobile number, and tracking code.</p>
+        </div>
+        <form id="trackForm" class="track-form">
+          <input name="bookingId" placeholder="Booking ID, example VRK-2026-0001" required>
+          <input name="phone" inputmode="tel" placeholder="Registered mobile number" required>
+          <input name="trackingCode" inputmode="numeric" maxlength="6" placeholder="6-digit tracking code" required>
+          <button class="secondary" type="submit">Check</button>
+        </form>
+        <div id="trackResult" class="track-result" aria-live="polite"></div>
+      </div>
+    </div>
+
     <div class="booking-modal hidden" id="bookingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="booking-modal-panel">
         <button class="modal-close" id="modalClose" type="button" aria-label="Close booking popup">x</button>
@@ -127,51 +106,8 @@
           <h2 id="modalTitle">Send booking request</h2>
           <p id="modalMessage">Owner will share the exact quotation and payment details.</p>
         </div>
-        <form id="modalBookingForm" class="form-grid compact">
-          <label>
-            Customer name
-            <input name="customerName" autocomplete="name" required>
-          </label>
-          <label>
-            Mobile number
-            <input name="phone" autocomplete="tel" required>
-          </label>
-          <label>
-            Email
-            <input name="email" type="email" autocomplete="email">
-          </label>
-          <label>
-            Passengers
-            <input name="passengers" type="number" min="1" value="1" required>
-          </label>
-          <label>
-            Travel / departure date
-            <input name="travelDate" type="date" required>
-          </label>
-          <label>
-            Return date (if needed)
-            <input name="returnDate" type="date">
-          </label>
-          <label class="full">
-            Pickup location
-            <input name="pickupLocation" required>
-          </label>
-          <label class="full">
-            Drop location
-            <input name="dropLocation">
-          </label>
-          <label class="full">
-            Notes
-            <textarea name="message" rows="3" placeholder="Pickup time, luggage, return plan, special request"></textarea>
-          </label>
-          <input type="hidden" name="bookingType" value="car">
-          <input type="hidden" name="packageId">
-          <input type="hidden" name="packageTitle">
-          <input type="hidden" name="amount">
-          <div class="selected-strip full">Select a car or send a general enquiry.</div>
-          <button class="primary full" type="submit">Send booking request</button>
-          <p class="form-message full" role="status"></p>
-        </form>
+        <form id="modalBookingForm" class="form-grid compact"></form>
+        <div id="bookingConfirmation" class="booking-confirmation hidden"></div>
       </div>
     </div>
 

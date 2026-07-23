@@ -46,6 +46,9 @@
   const recaptchaContainer = document.querySelector("#recaptchaContainer");
   const bookingModal = document.querySelector("#bookingModal");
   const modalClose = document.querySelector("#modalClose");
+  const bookingConfirmation = document.querySelector("#bookingConfirmation");
+  const trackModal = document.querySelector("#trackModal");
+  const trackClose = document.querySelector("#trackClose");
   const infoModal = document.querySelector("#infoModal");
   const infoClose = document.querySelector("#infoClose");
   const infoCloseSecondary = document.querySelector("#infoCloseSecondary");
@@ -59,6 +62,8 @@
   const trackResult = document.querySelector("#trackResult");
   const bookingMessage = document.querySelector("#bookingMessage");
   const tabs = Array.from(document.querySelectorAll("[data-tab]"));
+  const menuToggle = document.querySelector("[data-menu-toggle]");
+  const customerMenu = document.querySelector("#customerMenu");
 
   function loadCustomerProfile() {
     try {
@@ -538,6 +543,9 @@
     ["one_day_package", "One day package"],
     ["multi_day_package", "Multi day package"],
     ["airport_transfer", "Airport transfer"],
+    ["railway_transfer", "Railway transfer"],
+    ["wedding_event", "Wedding / event booking"],
+    ["corporate_booking", "Corporate booking"],
     ["custom_trip", "Custom trip"]
   ];
 
@@ -552,134 +560,337 @@
     return "one_way";
   }
 
-  function bookingFormUpgradeHtml() {
+  function bookingFormBodyHtml() {
     return `
-      <div class="booking-form-upgrade full" data-booking-upgrade>
+      <input type="hidden" name="bookingType" value="car">
+      <input type="hidden" name="packageId">
+      <input type="hidden" name="packageTitle">
+      <input type="hidden" name="amount">
+      <input type="hidden" name="estimatedFare">
+      <input type="hidden" name="vehiclePreference">
+
+      <section class="booking-step full">
+        <span class="step-number">1</span>
         <div class="booking-extra-grid">
-          <label class="full trip-type-field">
+          <label class="trip-type-field full">
             Trip type
             <select name="tripType" required data-trip-type>
               ${tripTypeOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
             </select>
           </label>
-          <label>
-            WhatsApp number
-            <input name="whatsappNumber" autocomplete="tel" placeholder="+91 mobile number" required>
-          </label>
-          <label>
-            Pickup time
-            <input name="pickupTime" type="time" required>
-          </label>
-          <label>
-            Luggage count
-            <input name="luggageCount" type="number" min="0" value="0">
-          </label>
-          <label>
-            Vehicle preference
-            <select name="vehiclePreference">
-              <option value="">Owner can suggest</option>
-              <option value="Sedan">Sedan</option>
-              <option value="SUV">SUV</option>
-              <option value="Tempo Traveller">Tempo Traveller</option>
-              <option value="Luxury car">Luxury car</option>
-              <option value="Any available AC car">Any available AC car</option>
-            </select>
-          </label>
-          <label class="full">
-            Multiple destinations / stops
-            <textarea name="multipleDestinations" rows="2" placeholder="Add extra stops, one place per line"></textarea>
-          </label>
+        </div>
+      </section>
 
-          <fieldset class="trip-dynamic-panel full" data-trip-fields="local_rental">
-            <legend>Local rental package</legend>
+      <section class="booking-step full">
+        <span class="step-number">2</span>
+        <div>
+          <h3>Customer details</h3>
+          <div class="booking-extra-grid">
             <label>
-              Rental slab
-              <select name="localRentalPackage" data-required="true">
-                <option value="">Select package</option>
-                <option value="4hrs / 40km">4hrs / 40km</option>
-                <option value="8hrs / 80km">8hrs / 80km</option>
-                <option value="12hrs / 120km">12hrs / 120km</option>
+              Full name
+              <input name="customerName" autocomplete="name" maxlength="80" placeholder="Nandan Shetty" required>
+            </label>
+            <label>
+              Mobile number
+              <input name="phone" autocomplete="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" required>
+            </label>
+            <label>
+              WhatsApp number <small class="inline-help">optional</small>
+              <input name="whatsappNumber" autocomplete="tel" inputmode="numeric" maxlength="10" placeholder="Leave empty if same as mobile">
+            </label>
+            <label>
+              Email address <small class="inline-help">optional</small>
+              <input name="email" type="email" autocomplete="email" placeholder="name@example.com">
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="booking-step full">
+        <span class="step-number">3</span>
+        <div>
+          <h3>Travel details</h3>
+          <div class="booking-extra-grid">
+            <label>
+              Pickup location
+              <input name="pickupLocation" placeholder="Pickup area, landmark, city" required data-map-place>
+            </label>
+            <label>
+              Destination / drop location
+              <input name="dropLocation" placeholder="Destination, drop, or final place" required data-map-place>
+            </label>
+            <div class="stops-panel full">
+              <div class="stops-head">
+                <b>Stops on the way</b>
+                <button class="ghost" type="button" data-add-stop>+ Add stop</button>
+              </div>
+              <div class="stops-list" data-stops-list>
+                <input data-stop-input placeholder="Optional stop, example temple, hotel, office">
+              </div>
+            </div>
+            <label>
+              Pickup date
+              <input name="travelDate" type="date" required>
+            </label>
+            <label>
+              Pickup time
+              <input name="pickupTime" type="time" required>
+            </label>
+            <label>
+              Return date <small class="inline-help">required only for round trip</small>
+              <input name="returnDate" type="date">
+            </label>
+            <label>
+              Number of days
+              <input name="numberOfDays" type="number" min="1" placeholder="For round/custom trips">
+            </label>
+            <label>
+              Estimated distance KM <small class="inline-help">optional</small>
+              <input name="estimatedDistanceKm" type="number" min="0" step="0.1" placeholder="Example 180">
+            </label>
+            <label>
+              Estimated travel time <small class="inline-help">optional</small>
+              <input name="estimatedTravelTime" placeholder="Example 4 hrs 30 mins">
+            </label>
+            <a class="map-estimate-link full" href="https://www.google.com/maps/dir/" target="_blank" rel="noopener" data-route-map-link>
+              Open route in Google Maps for distance estimate
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="booking-step full">
+        <span class="step-number">4</span>
+        <div>
+          <h3>Passenger and vehicle details</h3>
+          <div class="booking-extra-grid">
+            <label>
+              Number of passengers
+              <input name="passengers" type="number" min="1" value="1" required>
+            </label>
+            <label>
+              Number of luggage bags
+              <input name="luggageCount" type="number" min="0" value="0">
+            </label>
+            <label class="switch-row">
+              <input name="childSeatRequired" type="checkbox">
+              Child seat required
+            </label>
+            <label class="switch-row">
+              <input name="seniorCitizenTravelling" type="checkbox">
+              Senior citizen travelling
+            </label>
+            <label class="full">
+              Vehicle selection
+              <select name="preferredCarId" data-vehicle-select>
+                <option value="">No preference - recommend best vehicle</option>
               </select>
             </label>
-          </fieldset>
-
-          <fieldset class="trip-dynamic-panel full" data-trip-fields="round_trip">
-            <legend>Round trip planning</legend>
-            <div class="booking-extra-grid">
-              <label>
-                Departure date
-                <input name="departureDate" type="date">
-              </label>
-              <label>
-                Return date
-                <input name="tripReturnDate" type="date">
-              </label>
-              <label>
-                Number of days
-                <input name="numberOfDays" type="number" min="1" data-required="true">
-              </label>
+            <div class="vehicle-preview full" data-vehicle-preview>
+              Select a vehicle or choose no preference. VRK will recommend the best car.
             </div>
-            <small class="form-help">Use the destinations field above for all places to cover.</small>
-          </fieldset>
+          </div>
+        </div>
+      </section>
 
-          <fieldset class="trip-dynamic-panel full" data-trip-fields="airport_transfer">
-            <legend>Airport transfer</legend>
-            <div class="booking-extra-grid">
+      <section class="booking-step full">
+        <span class="step-number">5</span>
+        <div>
+          <h3>Trip-specific details</h3>
+          <div class="booking-extra-grid">
+            <fieldset class="trip-dynamic-panel full" data-trip-fields="local_rental">
+              <legend>Local rental package</legend>
               <label>
-                Pickup or drop
-                <select name="airportTripMode" data-required="true">
-                  <option value="">Select</option>
-                  <option value="Airport pickup">Airport pickup</option>
-                  <option value="Airport drop">Airport drop</option>
+                Rental slab
+                <select name="localRentalPackage" data-required="true">
+                  <option value="">Select package</option>
+                  <option value="4hrs / 40km">4hrs / 40km</option>
+                  <option value="8hrs / 80km">8hrs / 80km</option>
+                  <option value="12hrs / 120km">12hrs / 120km</option>
                 </select>
               </label>
-              <label>
-                Airport
-                <input name="airportName" placeholder="Kempegowda International Airport" data-required="true">
-              </label>
-              <label>
-                Flight number
-                <input name="flightNumber" placeholder="Example AI 503">
-              </label>
-              <label>
-                Terminal
-                <input name="terminal" placeholder="T1 / T2">
-              </label>
-              <label>
-                Flight time
-                <input name="flightTime" type="time" data-required="true">
-              </label>
-            </div>
-          </fieldset>
+            </fieldset>
 
-          <fieldset class="trip-dynamic-panel full" data-trip-fields="custom_trip">
-            <legend>Custom trip details</legend>
-            <div class="booking-extra-grid">
-              <label class="full">
-                Add another destination
-                <textarea name="customDestinations" rows="2" placeholder="Add places, route ideas, or stopovers" data-required="true"></textarea>
-              </label>
-              <label>
-                Budget
-                <input name="budget" type="number" min="0" placeholder="Approx budget">
-              </label>
-              <label>
-                Number of days
-                <input name="customNumberOfDays" type="number" min="1">
-              </label>
-              <label class="full">
-                Special requirements
-                <textarea name="specialRequirements" rows="2" placeholder="Senior citizen support, child seat, extra luggage, early morning pickup"></textarea>
-              </label>
-            </div>
-          </fieldset>
+            <fieldset class="trip-dynamic-panel full" data-trip-fields="round_trip">
+              <legend>Round trip planning</legend>
+              <small class="form-help">Return date and number of days are required for round trips.</small>
+            </fieldset>
 
-          <label class="switch-row terms-check full">
+            <fieldset class="trip-dynamic-panel full" data-trip-fields="airport_transfer">
+              <legend>Airport transfer</legend>
+              <div class="booking-extra-grid">
+                <label>
+                  Pickup or drop
+                  <select name="airportTripMode" data-required="true">
+                    <option value="">Select</option>
+                    <option value="Airport pickup">Airport pickup</option>
+                    <option value="Airport drop">Airport drop</option>
+                  </select>
+                </label>
+                <label>
+                  Airport
+                  <input name="airportName" placeholder="Kempegowda International Airport" data-required="true">
+                </label>
+                <label>
+                  Flight number
+                  <input name="flightNumber" placeholder="Example AI 503">
+                </label>
+                <label>
+                  Terminal
+                  <input name="terminal" placeholder="T1 / T2">
+                </label>
+                <label>
+                  Flight time
+                  <input name="flightTime" type="time" data-required="true">
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="trip-dynamic-panel full" data-trip-fields="railway_transfer">
+              <legend>Railway transfer</legend>
+              <div class="booking-extra-grid">
+                <label>
+                  Railway station
+                  <input name="railwayStation" placeholder="Station name" data-required="true">
+                </label>
+                <label>
+                  Train number
+                  <input name="trainNumber" placeholder="Example 16585">
+                </label>
+                <label>
+                  Train time
+                  <input name="trainTime" type="time" data-required="true">
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="trip-dynamic-panel full" data-trip-fields="wedding_event">
+              <legend>Wedding or event booking</legend>
+              <div class="booking-extra-grid">
+                <label>
+                  Event venue
+                  <input name="eventVenue" placeholder="Venue and city" data-required="true">
+                </label>
+                <label>
+                  Reporting time
+                  <input name="eventStartTime" type="time" data-required="true">
+                </label>
+                <label>
+                  End time
+                  <input name="eventEndTime" type="time">
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="trip-dynamic-panel full" data-trip-fields="corporate_booking">
+              <legend>Corporate booking</legend>
+              <div class="booking-extra-grid">
+                <label>
+                  Company name
+                  <input name="companyName" data-required="true">
+                </label>
+                <label>
+                  Reporting time
+                  <input name="reportingTime" type="time" data-required="true">
+                </label>
+                <label class="switch-row">
+                  <input name="billingRequired" type="checkbox">
+                  GST/company bill required
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="trip-dynamic-panel full" data-trip-fields="custom_trip">
+              <legend>Custom trip details</legend>
+              <div class="booking-extra-grid">
+                <label class="full">
+                  Add another destination
+                  <textarea name="customDestinations" rows="2" placeholder="Add places, route ideas, or stopovers" data-required="true"></textarea>
+                </label>
+                <label>
+                  Budget
+                  <input name="budget" type="number" min="0" placeholder="Approx budget">
+                </label>
+                <label>
+                  Number of days
+                  <input name="customNumberOfDays" type="number" min="1">
+                </label>
+              </div>
+            </fieldset>
+
+            <label class="full">
+              Special requirements
+              <textarea name="specialRequirements" rows="2" placeholder="Senior citizen support, child seat, extra luggage, early pickup, event duty, corporate billing"></textarea>
+            </label>
+            <label class="full">
+              Notes
+              <textarea name="message" rows="2" placeholder="Any other route, timing, package, darshan, hotel, or driver note"></textarea>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="booking-step full">
+        <span class="step-number">6</span>
+        <div>
+          <h3>Price review</h3>
+          <div class="selected-strip" data-selected-strip>Select a service or send a custom trip enquiry.</div>
+          <div class="quote-preview" data-quote-preview>
+            Enter route and vehicle details to see an estimated fare.
+          </div>
+          <p class="fare-note">Estimated fare only. Final fare will be confirmed by VRK Tours and Travels after reviewing your trip details.</p>
+        </div>
+      </section>
+
+      <section class="booking-step full">
+        <span class="step-number">7</span>
+        <div>
+          <h3>Payment information</h3>
+          <div class="booking-extra-grid">
+            <label>
+              Payment preference
+              <select name="paymentPreference">
+                <option value="pay_later">Pay later after owner confirmation</option>
+                <option value="advance_optional">Advance payment after quote</option>
+                <option value="upi">UPI</option>
+                <option value="qr">QR code</option>
+                <option value="bank_transfer">Bank transfer / netbanking</option>
+              </select>
+            </label>
+            <label class="switch-row">
+              <input name="advancePaymentInterest" type="checkbox">
+              I can pay advance after owner confirms
+            </label>
+          </div>
+          <div class="payment-mini" data-payment-mini></div>
+        </div>
+      </section>
+
+      <section class="booking-step full">
+        <span class="step-number">8</span>
+        <div>
+          <h3>Terms and policies</h3>
+          <div class="policy-links">
+            <a href="#privacyPolicy">Privacy policy</a>
+            <a href="#cancellationPolicy">Cancellation and refund</a>
+            <a href="#pricingPolicy">Pricing policy</a>
+            <a href="#safetyGuidelines">Safety guidelines</a>
+            <a href="#faq">FAQ</a>
+          </div>
+          <label class="switch-row terms-check">
             <input name="termsAccepted" type="checkbox" required>
-            I accept that VRK owner will confirm vehicle, driver, route, quotation, and payment details before travel.
+            I have read and agree to the terms and conditions and privacy policy of VRK Tours and Travels.
           </label>
         </div>
+      </section>
+
+      <div class="booking-form-actions full">
+        <button class="primary" type="submit" name="quoteAction" value="get_quote">Get quote</button>
+        <button class="secondary" type="submit" name="quoteAction" value="book_now">Book now</button>
+        <a class="ghost" href="#contactMap" data-contact-action="whatsapp" target="_blank" rel="noopener">WhatsApp enquiry</a>
+        <a class="ghost" href="#contactMap" data-contact-action="call">Call now</a>
       </div>
+      <p class="form-message full" role="status"></p>
     `;
   }
 
@@ -694,11 +905,19 @@
         input.required = active && input.dataset.required === "true";
       });
     });
+    if (form.elements.returnDate) {
+      form.elements.returnDate.required = tripType === "round_trip";
+    }
+    if (form.elements.numberOfDays) {
+      form.elements.numberOfDays.required = ["round_trip", "multi_day_package"].includes(tripType);
+    }
+    updateQuotePreview(form);
   }
 
   function upgradeBookingForm(form) {
-    if (!form || form.querySelector("[data-booking-upgrade]")) return;
-    form.insertAdjacentHTML("afterbegin", bookingFormUpgradeHtml());
+    if (!form || form.dataset.bookingReady === "true") return;
+    form.dataset.bookingReady = "true";
+    form.innerHTML = bookingFormBodyHtml();
     const tripType = form.elements.tripType;
     tripType.value = defaultTripTypeForBookingType(form.elements.bookingType ? form.elements.bookingType.value : "car");
     form.dataset.autoTripType = tripType.value;
@@ -706,8 +925,185 @@
       form.dataset.tripTypeManual = "true";
       refreshTripFields(form);
     });
+    const addStop = form.querySelector("[data-add-stop]");
+    if (addStop) {
+      addStop.addEventListener("click", () => addStopInput(form));
+    }
+    form.addEventListener("input", (event) => {
+      if (event.target.matches("[data-map-place], [name='estimatedDistanceKm'], [name='preferredCarId'], [name='tripType']")) {
+        updateQuotePreview(form);
+        updateRouteMapLink(form);
+      }
+    });
+    form.addEventListener("change", (event) => {
+      if (event.target.matches("[name='preferredCarId'], [name='paymentPreference'], [name='tripType']")) {
+        updateVehicleSummary(form);
+        updatePaymentMini(form);
+        updateQuotePreview(form);
+      }
+    });
     refreshTripFields(form);
     prepareBookingFormValidation(form);
+    updateVehicleOptions(form);
+    updateVehicleSummary(form);
+    updatePaymentMini(form);
+    updateRouteMapLink(form);
+  }
+
+  function activeCars() {
+    return state.data && Array.isArray(state.data.cars) ? state.data.cars.filter((car) => car.active !== false) : [];
+  }
+
+  function carById(id) {
+    return activeCars().find((car) => car.id === id) || null;
+  }
+
+  function vehicleForForm(form) {
+    const selectedId = form && form.elements && form.elements.preferredCarId ? form.elements.preferredCarId.value : "";
+    return carById(selectedId) || (state.selected && kindForItem(state.selected) === "car" ? state.selected : null);
+  }
+
+  function updateVehicleOptions(form) {
+    if (!form || !form.elements || !form.elements.preferredCarId || !state.data) return;
+    const select = form.elements.preferredCarId;
+    const current = select.value || (state.selected && kindForItem(state.selected) === "car" ? state.selected.id : "");
+    select.innerHTML = [
+      `<option value="">No preference - recommend best vehicle</option>`,
+      ...activeCars().map(
+        (car) =>
+          `<option value="${VRK.escapeHtml(car.id)}">${VRK.escapeHtml(
+            [car.name, car.category, car.seats ? `${car.seats} seats` : "", car.available === false ? "unavailable" : "available"]
+              .filter(Boolean)
+              .join(" | ")
+          )}</option>`
+      )
+    ].join("");
+    select.value = activeCars().some((car) => car.id === current) ? current : "";
+  }
+
+  function vehicleSummary(vehicle) {
+    if (!vehicle) return "No vehicle selected. VRK will recommend the best available car based on passengers and luggage.";
+    const luggage = Number(vehicle.luggageCapacity || 0);
+    return [
+      `${vehicle.name || "Selected vehicle"}`,
+      vehicle.seats ? `Seats: ${vehicle.seats}` : "",
+      luggage ? `Luggage: ${luggage} bags` : "",
+      vehicle.ac === false ? "Non AC" : "AC",
+      vehicle.localRate || vehicle.outstationRate
+        ? `Starting: ${ratePerKm(vehicle.outstationRate || vehicle.localRate || vehicle.ratePerKm)}`
+        : "Starting fare: owner confirms"
+    ]
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  function updateVehicleSummary(form) {
+    if (!form || !form.elements) return;
+    const vehicle = vehicleForForm(form);
+    const preview = form.querySelector("[data-vehicle-preview]");
+    if (preview) preview.textContent = vehicleSummary(vehicle);
+    if (form.elements.vehiclePreference) {
+      form.elements.vehiclePreference.value = vehicle ? vehicleSummary(vehicle) : "No preference - recommend best vehicle";
+    }
+    if (form.elements.passengers) {
+      const capacity = passengerCapacity(vehicle);
+      if (capacity) {
+        form.elements.passengers.max = String(capacity);
+        form.elements.passengers.placeholder = `Max ${capacity} passengers`;
+      } else {
+        form.elements.passengers.removeAttribute("max");
+        form.elements.passengers.placeholder = "";
+      }
+    }
+  }
+
+  function estimateFareForForm(form) {
+    if (!form || !form.elements) return 0;
+    const tripType = form.elements.tripType ? form.elements.tripType.value : "one_way";
+    const distance = Number(form.elements.estimatedDistanceKm ? form.elements.estimatedDistanceKm.value || 0 : 0);
+    const vehicle = vehicleForForm(form);
+    if (state.selected && kindForItem(state.selected) !== "car" && Number(state.selected.price || 0)) {
+      return Number(state.selected.price || 0);
+    }
+    if (!vehicle) return Number(state.selected ? amountForItem(state.selected) : 0) || 0;
+    if (tripType === "local_rental") {
+      const slab = form.elements.localRentalPackage ? form.elements.localRentalPackage.value : "";
+      const includedKm = slab.includes("4hrs") ? 40 : slab.includes("8hrs") ? 80 : slab.includes("12hrs") ? 120 : 0;
+      const rate = Number(vehicle.localRate || vehicle.ratePerKm || vehicle.outstationRate || 0);
+      return includedKm && rate ? includedKm * rate : rate;
+    }
+    const rate = Number(
+      ["round_trip", "one_way", "airport_transfer", "railway_transfer", "wedding_event", "corporate_booking"].includes(tripType)
+        ? vehicle.outstationRate || vehicle.localRate || vehicle.ratePerKm || 0
+        : vehicle.localRate || vehicle.outstationRate || vehicle.ratePerKm || 0
+    );
+    if (distance && rate) return Math.round(distance * rate);
+    return Number(vehicle.outstationRate || vehicle.localRate || vehicle.ratePerKm || 0);
+  }
+
+  function updateQuotePreview(form) {
+    if (!form || !form.elements) return;
+    updateVehicleSummary(form);
+    const amount = estimateFareForForm(form);
+    if (form.elements.amount) form.elements.amount.value = amount || 0;
+    if (form.elements.estimatedFare) form.elements.estimatedFare.value = amount || 0;
+    const vehicle = vehicleForForm(form);
+    const selectedTitle = state.selected ? titleForItem(state.selected) : "Custom trip enquiry";
+    const preview = form.querySelector("[data-quote-preview]");
+    const selectedStrip = form.querySelector("[data-selected-strip], .selected-strip");
+    if (selectedStrip) {
+      selectedStrip.textContent = `${selectedTitle} - ${vehicle ? vehicle.name || "selected vehicle" : "VRK recommends vehicle"}`;
+    }
+    if (preview) {
+      const distance = Number(form.elements.estimatedDistanceKm ? form.elements.estimatedDistanceKm.value || 0 : 0);
+      const rows = [
+        ["Estimated distance", distance ? `${distance} km` : "Add KM for better estimate"],
+        ["Estimated travel time", form.elements.estimatedTravelTime ? form.elements.estimatedTravelTime.value || "Owner confirms" : "Owner confirms"],
+        ["Selected vehicle", vehicle ? vehicle.name || vehicleSummary(vehicle) : "No preference"],
+        ["Estimated fare", amount ? VRK.money(amount) : "Owner confirms"]
+      ];
+      preview.innerHTML = rows.map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`).join("");
+    }
+  }
+
+  function updatePaymentMini(form) {
+    const target = form && form.querySelector("[data-payment-mini]");
+    if (!target) return;
+    const business = (state.data && state.data.business) || {};
+    target.innerHTML = `
+      ${business.upiId ? `<span><b>UPI</b>${VRK.escapeHtml(business.upiId)}</span>` : ""}
+      ${business.qrImage ? `<span><b>QR</b>QR code available after owner confirmation.</span>` : ""}
+      ${business.bankDetails ? `<span><b>Bank</b>Bank transfer details available after quote.</span>` : ""}
+      <span><b>Safety</b>Pay only after VRK confirms fare and booking status.</span>
+    `;
+  }
+
+  function updateRouteMapLink(form) {
+    const link = form && form.querySelector("[data-route-map-link]");
+    if (!link || !form.elements) return;
+    const points = [
+      form.elements.pickupLocation && form.elements.pickupLocation.value,
+      ...Array.from(form.querySelectorAll("[data-stop-input]")).map((input) => input.value),
+      form.elements.dropLocation && form.elements.dropLocation.value
+    ].filter((value) => String(value || "").trim());
+    link.href = points.length ? `https://www.google.com/maps/dir/${points.map((point) => encodeURIComponent(point)).join("/")}` : "https://www.google.com/maps/dir/";
+  }
+
+  function addStopInput(form) {
+    const list = form && form.querySelector("[data-stops-list]");
+    if (!list) return;
+    const input = document.createElement("input");
+    input.placeholder = "Another stop, example hotel, airport, temple";
+    input.dataset.stopInput = "true";
+    list.appendChild(input);
+    input.focus();
+  }
+
+  function stopsText(form) {
+    return Array.from(form.querySelectorAll("[data-stop-input]"))
+      .map((input) => String(input.value || "").trim())
+      .filter(Boolean)
+      .join("\n");
   }
 
   function tripSummaryDetails(booking) {
@@ -723,6 +1119,8 @@
       booking.pickupTime ? `Pickup time: ${booking.pickupTime}` : "",
       booking.vehiclePreference ? `Vehicle preference: ${booking.vehiclePreference}` : "",
       Number(booking.luggageCount || 0) ? `Luggage: ${booking.luggageCount}` : "",
+      booking.childSeatRequired ? "Child seat required" : "",
+      booking.seniorCitizenTravelling ? "Senior citizen travelling" : "",
       destinations ? `Stops: ${destinations}` : "",
       booking.localRentalPackage ? `Local rental: ${booking.localRentalPackage}` : "",
       booking.numberOfDays ? `Trip days: ${booking.numberOfDays}` : "",
@@ -731,6 +1129,16 @@
       booking.flightNumber ? `Flight: ${booking.flightNumber}` : "",
       booking.terminal ? `Terminal: ${booking.terminal}` : "",
       booking.flightTime ? `Flight time: ${booking.flightTime}` : "",
+      booking.railwayStation ? `Railway station: ${booking.railwayStation}` : "",
+      booking.trainNumber ? `Train: ${booking.trainNumber}` : "",
+      booking.trainTime ? `Train time: ${booking.trainTime}` : "",
+      booking.eventVenue ? `Event venue: ${booking.eventVenue}` : "",
+      booking.eventStartTime ? `Event reporting: ${booking.eventStartTime}` : "",
+      booking.companyName ? `Company: ${booking.companyName}` : "",
+      booking.reportingTime ? `Reporting time: ${booking.reportingTime}` : "",
+      booking.estimatedDistanceKm ? `Estimated distance: ${booking.estimatedDistanceKm} km` : "",
+      booking.estimatedTravelTime ? `Estimated time: ${booking.estimatedTravelTime}` : "",
+      booking.estimatedFare ? `Estimated fare: ${VRK.money(booking.estimatedFare)}` : "",
       customDestinations ? `Custom destinations: ${customDestinations}` : "",
       booking.budget ? `Budget: ${VRK.money(booking.budget)}` : "",
       booking.specialRequirements ? `Special requirements: ${booking.specialRequirements}` : ""
@@ -890,13 +1298,18 @@
       return firstInvalidField(form, "Round trip return date cannot be before travel date.");
     }
 
+    const customerName = String(form.elements.customerName.value || "").trim();
+    if (!/^[A-Za-z][A-Za-z .'-]{1,79}$/.test(customerName)) {
+      markInvalid(form.elements.customerName);
+      return firstInvalidField(form, "Enter full name using letters and spaces.");
+    }
     if (!isValidMobile(form.elements.phone.value)) {
       markInvalid(form.elements.phone);
       return firstInvalidField(form, "Enter a valid 10-digit India mobile number.");
     }
-    if (!isValidMobile(form.elements.whatsappNumber.value)) {
+    if (form.elements.whatsappNumber.value && !isValidMobile(form.elements.whatsappNumber.value)) {
       markInvalid(form.elements.whatsappNumber);
-      return firstInvalidField(form, "Enter a valid 10-digit India WhatsApp number.");
+      return firstInvalidField(form, "Enter a valid 10-digit India WhatsApp number, or leave it empty.");
     }
     if (form.elements.email && !isValidEmail(form.elements.email.value)) {
       markInvalid(form.elements.email);
@@ -908,8 +1321,7 @@
       markInvalid(form.elements.passengers);
       return firstInvalidField(form, "Passenger count must be at least 1.");
     }
-    const selectedType = form.elements.bookingType.value;
-    const capacity = selectedType === "car" ? passengerCapacity(state.selected) || Number(form.elements.passengers.max || 0) : 0;
+    const capacity = passengerCapacity(vehicleForForm(form)) || Number(form.elements.passengers.max || 0);
     if (capacity && passengers > capacity) {
       markInvalid(form.elements.passengers);
       return firstInvalidField(form, `Selected car allows ${capacity} passenger(s). Choose a bigger car or reduce passengers.`);
@@ -927,7 +1339,7 @@
         form.elements[name].placeholder = name === "phone" ? "10-digit mobile number" : "+91 WhatsApp number";
       }
     });
-    ["passengers", "luggageCount", "numberOfDays", "customNumberOfDays", "budget"].forEach((name) => {
+    ["passengers", "luggageCount", "numberOfDays", "customNumberOfDays", "budget", "estimatedDistanceKm"].forEach((name) => {
       if (form.elements[name]) form.elements[name].inputMode = "numeric";
     });
     form.addEventListener("input", () => {
@@ -1176,14 +1588,15 @@
       .map(
         (banner) => `
           <article class="hero-slide banner-click ${
-            banner.desktopImage || banner.image ? `hero-slide-image ${banner.mobileImage ? "has-mobile-image" : ""}` : ""
+            banner.desktopImage || banner.image ? `hero-slide-image ${banner.mobileImage ? "has-mobile-image" : ""}` : `poster-${banner.posterStyle || "teal"}`
           }" data-banner-info="${VRK.escapeHtml(banner.id)}" tabindex="0" role="button" aria-label="Open details for ${VRK.escapeHtml(
             banner.heading || banner.title
           )}" style="${bannerImageStyle(banner)}">
             <div>
-              <span class="eyebrow">${VRK.escapeHtml(banner.offerLabel || banner.prompt || "Featured offer")}</span>
+              <span class="eyebrow">${VRK.escapeHtml(banner.badgeText || banner.offerLabel || banner.prompt || "Featured offer")}</span>
               <h1>${VRK.escapeHtml(banner.heading || banner.title)}</h1>
               <p>${VRK.escapeHtml(banner.subheading || banner.subtitle || "Book now and owner will confirm the best travel plan.")}</p>
+              ${banner.priceText ? `<strong class="poster-price">${VRK.escapeHtml(banner.priceText)}</strong>` : ""}
               ${
                 banner.buttonLink
                   ? `<a class="hero-hint" data-banner-link href="${VRK.escapeHtml(banner.buttonLink)}">${VRK.escapeHtml(
@@ -1212,11 +1625,6 @@
               <a class="primary" href="#quickBooking" data-open-booking>Book a car</a>
               <a class="secondary" href="#oneDayPackages">View packages</a>
               <a class="ghost hero-whatsapp" href="#contactMap" data-contact-action="whatsapp" target="_blank" rel="noopener">WhatsApp Us</a>
-            </div>
-            <div class="hero-stat-row" aria-label="Published services">
-              <span><b>${counts.days}</b><small>One-day packages</small></span>
-              <span><b>${counts.tours}</b><small>Multi-day tours</small></span>
-              <span><b>${counts.cars}</b><small>Available cars</small></span>
             </div>
           </div>
         </article>
@@ -1569,6 +1977,45 @@
     `;
   }
 
+  function renderPolicyCenter() {
+    if (!siteFooter) return;
+    const business = state.data.business || {};
+    let section = document.querySelector("#policyCenter");
+    if (!section) {
+      section = document.createElement("section");
+      section.id = "policyCenter";
+      section.className = "policy-section customer-flow";
+      siteFooter.parentNode.insertBefore(section, siteFooter);
+    }
+    const policies = [
+      ["privacyPolicy", "Privacy policy", business.privacyPolicy],
+      ["cancellationPolicy", "Cancellation and refund policy", business.cancellationPolicy],
+      ["pricingPolicy", "Pricing policy", business.pricingPolicy],
+      ["safetyGuidelines", "Safety guidelines", business.safetyGuidelines],
+      ["faq", "FAQ", business.faqText]
+    ];
+    section.innerHTML = `
+      <div class="section-title">
+        <div>
+          <span class="eyebrow">Policies</span>
+          <h2>Clear booking rules before travel</h2>
+        </div>
+      </div>
+      <div class="policy-grid">
+        ${policies
+          .map(
+            ([id, title, text]) => `
+              <article id="${VRK.escapeHtml(id)}">
+                <b>${VRK.escapeHtml(title)}</b>
+                <p>${VRK.escapeHtml(text || "Owner will update this policy from admin settings.")}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
   function setSelected(item, openModal) {
     state.selected = item || null;
     document.querySelectorAll(".selected-strip").forEach((strip) => {
@@ -1594,8 +2041,9 @@
     form.elements.packageId.value = state.selected ? state.selected.id : "";
     form.elements.packageTitle.value = state.selected ? titleForItem(state.selected) : "General travel enquiry";
     form.elements.amount.value = state.selected ? amountForItem(state.selected) : 0;
+    updateVehicleOptions(form);
     if (form.elements.passengers) {
-      const capacity = type === "car" ? passengerCapacity(state.selected) : 0;
+      const capacity = passengerCapacity(vehicleForForm(form));
       if (capacity) {
         form.elements.passengers.max = String(capacity);
         form.elements.passengers.placeholder = `Max ${capacity} passengers`;
@@ -1604,22 +2052,44 @@
         form.elements.passengers.placeholder = "";
       }
     }
+    updateVehicleSummary(form);
+    updatePaymentMini(form);
+    updateQuotePreview(form);
   }
 
   function openBookingModal() {
     updateFormSelection(modalBookingForm);
+    if (bookingConfirmation) {
+      bookingConfirmation.classList.add("hidden");
+      bookingConfirmation.innerHTML = "";
+    }
     modalClose.classList.remove("hidden");
     bookingModal.dataset.allowClose = "true";
     modalBookingForm.classList.remove("hidden");
+    document.querySelector("#modalTitle").textContent = "Get VRK trip quote";
+    document.querySelector("#modalMessage").textContent =
+      "Fill the trip details. VRK will review and confirm final fare before payment.";
     const popupCta = bookingModal.querySelector("[data-popup-cta]");
     if (popupCta) popupCta.remove();
     const popupEyebrow = bookingModal.querySelector(".panel-heading .eyebrow");
-    if (popupEyebrow) popupEyebrow.textContent = "Quick booking";
+    if (popupEyebrow) popupEyebrow.textContent = "Booking request";
     bookingModal.classList.remove("hidden");
   }
 
   function closeBookingModal() {
     bookingModal.classList.add("hidden");
+  }
+
+  function openTrackModal() {
+    if (!trackModal) return;
+    trackModal.classList.remove("hidden");
+    if (trackForm && trackForm.elements && !trackForm.elements.bookingId.value) {
+      trackForm.elements.bookingId.focus();
+    }
+  }
+
+  function closeTrackModal() {
+    if (trackModal) trackModal.classList.add("hidden");
   }
 
   function popupTypeLabel(type) {
@@ -1676,6 +2146,7 @@
     renderHero();
     renderGallery();
     renderFooter();
+    renderPolicyCenter();
     updateContactSections();
     if (!state.selected) {
       const first = firstVisibleCatalogItem();
@@ -1689,7 +2160,46 @@
     maybeShowPopup();
   }
 
+  function showBookingConfirmation(booking, payload) {
+    if (!bookingConfirmation) return;
+    const links = contactLinks();
+    const estimate = Number(booking.estimatedFare || payload.estimatedFare || payload.amount || 0);
+    const details = [
+      ["Booking ID", booking.id],
+      ["Booking status", VRK.statusLabel(booking.status)],
+      ["Estimated fare", estimate ? VRK.money(estimate) : "Owner confirms"],
+      ["Customer", booking.customerName],
+      ["Mobile", booking.phone],
+      ["Trip type", tripTypeLabel(booking.tripType)],
+      ["Pickup", booking.pickupLocation],
+      ["Destination", booking.dropLocation],
+      ["Travel date", VRK.dateLabel(booking.travelDate)],
+      ["Passengers", booking.passengers]
+    ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+    bookingConfirmation.innerHTML = `
+      <div class="confirmation-card">
+        <span class="eyebrow">Booking request submitted</span>
+        <h2>${VRK.escapeHtml(booking.id)}</h2>
+        <p class="secure-code-box"><b>Tracking code</b><span>${VRK.escapeHtml(
+          booking.trackingCode || ""
+        )}</span><small>Keep this code with your booking ID and mobile number.</small></p>
+        <div class="tracking-summary-grid">
+          ${details.map(([label, value]) => `<span><b>${VRK.escapeHtml(label)}</b>${VRK.escapeHtml(value)}</span>`).join("")}
+        </div>
+        <p class="note-line">VRK Tours and Travels will review your route, distance, vehicle, driver availability, toll, parking, permit, and timing. Final fare and payment will be confirmed before travel.</p>
+        <div class="modal-actions">
+          <button class="primary" type="button" data-open-track>Track booking</button>
+          <a class="secondary" href="${VRK.escapeHtml(secureBillUrl(booking))}">Download booking summary</a>
+          <a class="ghost" href="${VRK.escapeHtml(links.whatsapp)}" target="_blank" rel="noopener">Contact support on WhatsApp</a>
+        </div>
+      </div>
+    `;
+    bookingConfirmation.classList.remove("hidden");
+    modalBookingForm.classList.add("hidden");
+  }
+
   function bindBookingForm(form, messageElement) {
+    if (!form) return;
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (form.dataset.submitting === "true") return;
@@ -1710,13 +2220,21 @@
       try {
         const payload = VRK.formToObject(form);
         payload.passengers = Number(payload.passengers || 1);
+        updateQuotePreview(form);
         payload.amount = Number(payload.amount || 0);
+        payload.estimatedFare = Number(payload.estimatedFare || payload.amount || 0);
+        payload.estimatedDistanceKm = Number(payload.estimatedDistanceKm || 0);
         payload.luggageCount = Number(payload.luggageCount || 0);
         payload.numberOfDays = Number(payload.numberOfDays || payload.customNumberOfDays || 0);
         payload.budget = Number(payload.budget || 0);
         payload.termsAccepted = form.elements.termsAccepted && form.elements.termsAccepted.checked;
+        payload.childSeatRequired = form.elements.childSeatRequired && form.elements.childSeatRequired.checked;
+        payload.seniorCitizenTravelling = form.elements.seniorCitizenTravelling && form.elements.seniorCitizenTravelling.checked;
+        payload.advancePaymentInterest = form.elements.advancePaymentInterest && form.elements.advancePaymentInterest.checked;
+        payload.billingRequired = form.elements.billingRequired && form.elements.billingRequired.checked;
+        payload.multipleDestinations = stopsText(form);
         payload.phone = normalizedIndiaMobile(payload.phone);
-        payload.whatsappNumber = normalizedIndiaMobile(payload.whatsappNumber);
+        payload.whatsappNumber = payload.whatsappNumber ? normalizedIndiaMobile(payload.whatsappNumber) : payload.phone;
         if (payload.email) payload.email = String(payload.email).trim().toLowerCase();
         const result = await VRK.request("/api/bookings", {
           method: "POST",
@@ -1736,6 +2254,7 @@
         trackForm.elements.phone.value = payload.phone;
         trackForm.elements.trackingCode.value = result.booking.trackingCode;
         renderTrackedBooking(result.booking);
+        showBookingConfirmation(result.booking, payload);
         form.reset();
         form.dataset.tripTypeManual = "";
         updateFormSelection(form);
@@ -1931,6 +2450,7 @@
     const bannerLink = event.target.closest("[data-banner-link]");
     const bannerInfo = event.target.closest("[data-banner-info]");
     const openButton = event.target.closest("[data-open-booking]");
+    const trackButton = event.target.closest("[data-open-track]");
     const providerButton = event.target.closest("[data-auth-provider]");
     const authAction = event.target.closest("[data-auth-action]");
     const popupCta = event.target.closest("[data-popup-cta]");
@@ -1962,7 +2482,24 @@
       if (banner) openBannerInfo(banner);
     }
 
-    if (openButton) openBookingModal();
+    if (openButton) {
+      event.preventDefault();
+      openBookingModal();
+      if (customerMenu) {
+        customerMenu.classList.remove("open");
+        if (menuToggle) menuToggle.setAttribute("aria-expanded", "false");
+      }
+    }
+
+    if (trackButton) {
+      event.preventDefault();
+      closeBookingModal();
+      openTrackModal();
+      if (customerMenu) {
+        customerMenu.classList.remove("open");
+        if (menuToggle) menuToggle.setAttribute("aria-expanded", "false");
+      }
+    }
 
     if (popupCta && bookingModal.dataset.popupStorageKey) {
       localStorage.setItem(bookingModal.dataset.popupStorageKey, "yes");
@@ -1982,6 +2519,19 @@
     if (customerLogout) logoutCustomer().catch((error) => setAuthMessage(error.message, "danger"));
     if (customerDelete) deleteCustomerAccount().catch((error) => setAuthMessage(error.message, "danger"));
   });
+
+  if (menuToggle && customerMenu) {
+    menuToggle.addEventListener("click", () => {
+      const isOpen = customerMenu.classList.toggle("open");
+      menuToggle.setAttribute("aria-expanded", String(isOpen));
+    });
+    customerMenu.addEventListener("click", (event) => {
+      if (event.target.closest("a")) {
+        customerMenu.classList.remove("open");
+        menuToggle.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
 
   if (verifyOtpButton) {
     verifyOtpButton.addEventListener("click", () => {
@@ -2005,6 +2555,16 @@
     }
     closeBookingModal();
   });
+
+  if (trackClose) {
+    trackClose.addEventListener("click", closeTrackModal);
+  }
+
+  if (trackModal) {
+    trackModal.addEventListener("click", (event) => {
+      if (event.target === trackModal) closeTrackModal();
+    });
+  }
 
   bookingModal.addEventListener("click", (event) => {
     if (event.target === bookingModal) {

@@ -638,17 +638,32 @@ function normalizeBusinessSettings(business) {
   const current = business || {};
   return {
     logo: "",
-    whatsapp: "",
+    phone: "+91 9113673823",
+    whatsapp: "+91 9113673823",
+    email: "nandanshetty111@gmail.com",
     googleMapsLink: "",
     workingHours: "",
     aboutText: "",
     socialLinks: [],
     footerText: "",
     emergencySupportNumber: "",
+    privacyPolicy:
+      "Customer contact and trip details are used only for quotation, booking coordination, billing, and trip support.",
+    cancellationPolicy:
+      "Cancellation and refund depend on vehicle assignment, driver movement, permits, hotel/package commitments, and owner confirmation.",
+    pricingPolicy:
+      "Website fare is an estimate. Final fare is confirmed by VRK Tours and Travels after route, distance, timing, toll, parking, permit, and vehicle review.",
+    safetyGuidelines:
+      "Passengers should share accurate pickup details, carry required ID proof, follow driver safety instructions, and avoid unsafe route changes.",
+    faqText:
+      "Final car, driver, route, fare, advance, balance, and payment method are confirmed by the owner before travel.",
     qrImage: "",
     gatewayNote: "Online gateway can be connected later with Razorpay or Stripe merchant keys.",
     authNote: "Customer login uses Firebase Phone OTP, email link, and Google sign-in after production keys are configured.",
     ...current,
+    phone: String(current.phone || "+91 9113673823").trim(),
+    whatsapp: String(current.whatsapp || current.phone || "+91 9113673823").trim(),
+    email: String(current.email || "nandanshetty111@gmail.com").trim(),
     socialLinks: normalizeArrayText(current.socialLinks),
     terms: normalizeArrayText(current.terms)
   };
@@ -673,6 +688,9 @@ function normalizeBannerItem(item) {
     buttonText,
     ctaLabel: buttonText,
     buttonLink: String(source.buttonLink || "").trim(),
+    badgeText: String(source.badgeText || source.offerLabel || "").trim(),
+    priceText: String(source.priceText || "").trim(),
+    posterStyle: String(source.posterStyle || "teal").trim(),
     sortOrder: Number(source.sortOrder || 0),
     active: flagValue(source.active, true)
   };
@@ -1174,6 +1192,37 @@ function customerTrackingSummary(store, booking) {
     pickupLocation: summary.pickupLocation,
     dropLocation: summary.dropLocation,
     passengers: summary.passengers,
+    whatsappNumber: summary.whatsappNumber,
+    luggageCount: summary.luggageCount,
+    childSeatRequired: summary.childSeatRequired,
+    seniorCitizenTravelling: summary.seniorCitizenTravelling,
+    preferredCarId: summary.preferredCarId,
+    vehiclePreference: summary.vehiclePreference,
+    multipleDestinations: summary.multipleDestinations,
+    localRentalPackage: summary.localRentalPackage,
+    numberOfDays: summary.numberOfDays,
+    airportTripMode: summary.airportTripMode,
+    airportName: summary.airportName,
+    flightNumber: summary.flightNumber,
+    terminal: summary.terminal,
+    flightTime: summary.flightTime,
+    railwayStation: summary.railwayStation,
+    trainNumber: summary.trainNumber,
+    trainTime: summary.trainTime,
+    eventVenue: summary.eventVenue,
+    eventStartTime: summary.eventStartTime,
+    eventEndTime: summary.eventEndTime,
+    companyName: summary.companyName,
+    reportingTime: summary.reportingTime,
+    billingRequired: summary.billingRequired,
+    customDestinations: summary.customDestinations,
+    budget: summary.budget,
+    specialRequirements: summary.specialRequirements,
+    estimatedDistanceKm: summary.estimatedDistanceKm,
+    estimatedTravelTime: summary.estimatedTravelTime,
+    estimatedFare: summary.estimatedFare,
+    paymentPreference: summary.paymentPreference,
+    advancePaymentInterest: summary.advancePaymentInterest,
     status: summary.status,
     quotationStatus: quotationStatus(summary),
     paymentStatus: summary.paymentStatus,
@@ -1508,6 +1557,9 @@ const TRIP_TYPES = new Set([
   "one_day_package",
   "multi_day_package",
   "airport_transfer",
+  "railway_transfer",
+  "wedding_event",
+  "corporate_booking",
   "custom_trip"
 ]);
 
@@ -1530,7 +1582,7 @@ function createBooking(store, payload) {
   const effectiveReturnDate = String(payload.returnDate || payload.tripReturnDate || "").trim();
   requireFields(
     { ...payload, travelDate: effectiveTravelDate },
-    ["customerName", "phone", "bookingType", "travelDate", "pickupLocation", "whatsappNumber", "pickupTime", "passengers"]
+    ["customerName", "phone", "bookingType", "travelDate", "pickupLocation", "dropLocation", "pickupTime", "passengers"]
   );
   assertValidTravelDates(effectiveTravelDate, effectiveReturnDate);
   const bookingType = String(payload.bookingType);
@@ -1540,11 +1592,15 @@ function createBooking(store, payload) {
     throw err;
   }
   const tripType = normalizeTripType(payload.tripType, bookingType);
+  const customerName = String(payload.customerName || "").trim();
+  if (!/^[A-Za-z][A-Za-z .'-]{1,79}$/.test(customerName)) {
+    throw validationError("Enter a valid full name using letters and spaces.");
+  }
   const phone = normalizeBookingMobile(payload.phone, "Mobile number");
-  const whatsappNumber = normalizeBookingMobile(payload.whatsappNumber, "WhatsApp number");
+  const whatsappNumber = payload.whatsappNumber ? normalizeBookingMobile(payload.whatsappNumber, "WhatsApp number") : phone;
   const email = normalizeBookingEmail(payload.email);
   if (!flagValue(payload.termsAccepted, false)) {
-    throw validationError("Accept booking terms before sending request");
+    throw validationError("Please accept the terms, privacy, cancellation, refund, pricing, and safety policies before booking.");
   }
   if (tripType === "local_rental") {
     requireFields(payload, ["localRentalPackage"]);
@@ -1558,10 +1614,20 @@ function createBooking(store, payload) {
   if (tripType === "airport_transfer") {
     requireFields(payload, ["airportTripMode", "airportName", "flightTime"]);
   }
+  if (tripType === "railway_transfer") {
+    requireFields(payload, ["railwayStation", "trainTime"]);
+  }
+  if (tripType === "wedding_event") {
+    requireFields(payload, ["eventVenue", "eventStartTime"]);
+  }
+  if (tripType === "corporate_booking") {
+    requireFields(payload, ["companyName", "reportingTime"]);
+  }
   if (tripType === "custom_trip") {
     requireFields({ ...payload, customDestinations: normalizeArrayText(payload.customDestinations).join("\n") }, ["customDestinations"]);
   }
   const item = selectedItem(store, bookingType, payload.packageId || "");
+  const preferredCar = store.cars.find((car) => car.id === payload.preferredCarId);
   const numberOfDays = parseInteger(payload.numberOfDays || payload.customNumberOfDays || payload.noOfDays);
   if (tripType === "round_trip" && numberOfDays < 1) {
     throw validationError("Number of days must be at least 1 for a round trip.");
@@ -1570,7 +1636,7 @@ function createBooking(store, payload) {
   if (passengers < 1) {
     throw validationError("Passenger count must be at least 1.");
   }
-  const capacity = bookingType === "car" ? carPassengerCapacity(item) : 0;
+  const capacity = carPassengerCapacity(preferredCar || (bookingType === "car" ? item : null));
   if (capacity && passengers > capacity) {
     throw validationError(`Selected car allows ${capacity} passenger(s). Reduce passengers or choose a bigger car.`);
   }
@@ -1584,7 +1650,7 @@ function createBooking(store, payload) {
     tripType,
     packageId: payload.packageId || "",
     packageTitle: payload.packageTitle || (item && (item.name || item.title)) || "Custom booking",
-    customerName: String(payload.customerName).trim(),
+    customerName,
     customerUid: String(payload.customerUid || "").trim(),
     customerAccountId: String(payload.customerAccountId || "").trim(),
     phone,
@@ -1597,6 +1663,9 @@ function createBooking(store, payload) {
     tripReturnDate: String(payload.tripReturnDate || effectiveReturnDate || ""),
     pickupTime: String(payload.pickupTime || "").trim(),
     luggageCount: parseInteger(payload.luggageCount),
+    childSeatRequired: flagValue(payload.childSeatRequired, false),
+    seniorCitizenTravelling: flagValue(payload.seniorCitizenTravelling, false),
+    preferredCarId: String(payload.preferredCarId || "").trim(),
     vehiclePreference: String(payload.vehiclePreference || "").trim(),
     multipleDestinations: normalizeArrayText(payload.multipleDestinations),
     localRentalPackage: String(payload.localRentalPackage || "").trim(),
@@ -1606,9 +1675,23 @@ function createBooking(store, payload) {
     flightNumber: String(payload.flightNumber || "").trim(),
     terminal: String(payload.terminal || "").trim(),
     flightTime: String(payload.flightTime || "").trim(),
+    railwayStation: String(payload.railwayStation || "").trim(),
+    trainNumber: String(payload.trainNumber || "").trim(),
+    trainTime: String(payload.trainTime || "").trim(),
+    eventVenue: String(payload.eventVenue || "").trim(),
+    eventStartTime: String(payload.eventStartTime || "").trim(),
+    eventEndTime: String(payload.eventEndTime || "").trim(),
+    companyName: String(payload.companyName || "").trim(),
+    reportingTime: String(payload.reportingTime || "").trim(),
+    billingRequired: flagValue(payload.billingRequired, false),
     customDestinations: normalizeArrayText(payload.customDestinations),
     budget: parseMoney(payload.budget),
     specialRequirements: String(payload.specialRequirements || "").trim(),
+    estimatedDistanceKm: parseMoney(payload.estimatedDistanceKm),
+    estimatedTravelTime: String(payload.estimatedTravelTime || "").trim(),
+    estimatedFare: parseMoney(payload.estimatedFare || payload.amount),
+    paymentPreference: String(payload.paymentPreference || "pay_later").trim(),
+    advancePaymentInterest: flagValue(payload.advancePaymentInterest, false),
     termsAccepted: true,
     pickupLocation: String(payload.pickupLocation).trim(),
     dropLocation: String(payload.dropLocation || "").trim(),
@@ -1865,6 +1948,11 @@ async function handleApi(req, res) {
       socialLinks: normalizeArrayText(body.socialLinks),
       footerText: String(body.footerText || "").trim(),
       emergencySupportNumber: String(body.emergencySupportNumber || "").trim(),
+      privacyPolicy: String(body.privacyPolicy || "").trim(),
+      cancellationPolicy: String(body.cancellationPolicy || "").trim(),
+      pricingPolicy: String(body.pricingPolicy || "").trim(),
+      safetyGuidelines: String(body.safetyGuidelines || "").trim(),
+      faqText: String(body.faqText || "").trim(),
       gstNumber: String(body.gstNumber || "").trim(),
       upiId: String(body.upiId || "").trim(),
       qrImage: String(body.qrImage || "").trim(),
@@ -2131,6 +2219,9 @@ async function handleApi(req, res) {
       terms: normalizeArrayText(body.terms),
       validUntil: String(body.validUntil || "").trim(),
       offerLabel: String(body.offerLabel || "").trim(),
+      badgeText: String(body.badgeText || body.offerLabel || "").trim(),
+      priceText: String(body.priceText || "").trim(),
+      posterStyle: String(body.posterStyle || "teal").trim(),
       prompt,
       desktopImage,
       mobileImage,
